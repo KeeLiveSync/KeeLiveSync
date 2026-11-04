@@ -24,6 +24,26 @@ namespace KeeLiveSync
         SignInRequired
     }
 
+    /// <summary>Was ein Abgleich an Einträgen verändert hat (Titel für die Anzeige, IDs zum Zeigen)</summary>
+    internal sealed class ChangeSet
+    {
+        public readonly List<KeyValuePair<PwUuid, string>> Added = new List<KeyValuePair<PwUuid, string>>();
+        public readonly List<KeyValuePair<PwUuid, string>> Changed = new List<KeyValuePair<PwUuid, string>>();
+        public readonly List<KeyValuePair<PwUuid, string>> Removed = new List<KeyValuePair<PwUuid, string>>();
+        public readonly List<KeyValuePair<PwUuid, string>> Restored = new List<KeyValuePair<PwUuid, string>>();
+
+        public bool IsEmpty
+        {
+            get { return Added.Count + Changed.Count + Removed.Count + Restored.Count == 0; }
+        }
+
+        /// <summary>Einträge, die sich in der Liste zeigen lassen (neu, geändert, wiederhergestellt)</summary>
+        public List<PwUuid> Showable
+        {
+            get { return Added.Concat(Restored).Concat(Changed).Select(kv => kv.Key).ToList(); }
+        }
+    }
+
     /// <summary>Eine geöffnete, verknüpfte Datenbank</summary>
     internal sealed class Session
     {
@@ -65,7 +85,7 @@ namespace KeeLiveSync
 
         internal event Action StateChanged;
         /// <summary>Änderungen anderer übernommen: Sitzung, Zusammenfassung, neu hinzugekommene Einträge</summary>
-        internal event Action<Session, string, List<PwUuid>> RemoteChangesApplied;
+        internal event Action<Session, ChangeSet> RemoteChangesApplied;
         /// <summary>Abgleich gestört (einmal je Problem): Sitzung, Meldung</summary>
         internal event Action<Session, string> ProblemOccurred;
 
@@ -206,10 +226,16 @@ namespace KeeLiveSync
                 if (e != null) entries.Add(e);
             }
             if (entries.UCount == 0) return;
-            _main.MakeDocumentActive(doc);
-            var group = entries.GetAt(0).ParentGroup;
-            if (_main.GetSelectedGroup() != group) _main.UpdateUI(false, doc, true, group, true, null, false);
+            if (_main.DocumentManager.ActiveDocument != doc) _main.MakeDocumentActive(doc);
+            // wie die KeePass-Suche: virtuelle Gruppe mit genau diesen Einträgen, gruppenübergreifend;
+            // ein Klick auf eine Gruppe im Baum führt zur normalen Ansicht zurück
+            var results = new PwGroup(true, true, Text.T("Änderungen", "Changes"), PwIcon.List) { IsVirtual = true };
+            foreach (var e in entries) results.AddEntry(e, false);
+            _main.UpdateUI(false, null, false, null, true, results, false);
             _main.SelectEntries(entries, true, true);
+            _main.SetStatusEx(Text.Plural(entries.UCount, "{0} geänderter Eintrag – zum Beenden links eine Gruppe anklicken",
+                "{0} geänderte Einträge – zum Beenden links eine Gruppe anklicken",
+                "{0} changed entry – click a group on the left to return", "{0} changed entries – click a group on the left to return"));
             _main.EnsureVisibleEntry(entries.GetAt(0).Uuid);
             Highlight(s, ids);
         }
@@ -648,6 +674,7 @@ namespace KeeLiveSync
 
                 bool wasModified = s.Db.Modified;
                 var before = Snapshot(s.Db);
+                var titlesBefore = Titles(s.Db);
                 var latest = Snapshot(remote);
                 string groupsBefore = GroupSignature(s.Db);
                 var view = SaveView();
@@ -689,12 +716,25 @@ namespace KeeLiveSync
                 s.Link.LastRemoteBy = item.ModifiedBy;
                 Log.Info("Zusammengeführt: " + s.Link.Name + " – " + (summary.Length == 0 ? "keine sichtbaren Änderungen" : summary));
 
-                var added = after.Keys.Where(k => !before.ContainsKey(k)).ToList();
+                var titlesAfter = Titles(s.Db);
+                var changes = new ChangeSet();
+                foreach (var kv in after)
+                {
+                    var entry = new KeyValuePair<PwUuid, string>(kv.Key, titlesAfter[kv.Key]);
+                    if (!before.ContainsKey(kv.Key))
+                    {
+                        if (latest.ContainsKey(kv.Key)) changes.Added.Add(entry);
+                        else changes.Restored.Add(entry);
+                    }
+                    else if (before[kv.Key] != kv.Value) changes.Changed.Add(entry);
+                }
+                foreach (var k in before.Keys.Where(k => !after.ContainsKey(k)))
+                    changes.Removed.Add(new KeyValuePair<PwUuid, string>(k, titlesBefore[k]));
                 if (summary.Length > 0 || GroupSignature(s.Db) != groupsBefore)
                 {
                     if (GroupSignature(s.Db) != groupsBefore || !RefreshEntriesOnly(s, view))
                         RefreshView(s, view, true);
-                    Highlight(s, added);
+                    Highlight(s, changes.Showable);
                 }
 
                 if (!wasModified)
@@ -714,7 +754,7 @@ namespace KeeLiveSync
                 if (summary.Length > 0)
                 {
                     var h = RemoteChangesApplied;
-                    if (h != null) h(s, summary, added);
+                    if (h != null && !changes.IsEmpty) h(s, changes);
                 }
             }
             finally
@@ -729,6 +769,20 @@ namespace KeeLiveSync
                     // Temp-Datei wird beim nächsten Start aufgeräumt
                 }
             }
+        }
+
+        /// <summary>Titel aller Einträge außerhalb des Papierkorbs (nur für die Anzeige)</summary>
+        private static Dictionary<PwUuid, string> Titles(PwDatabase db)
+        {
+            var map = new Dictionary<PwUuid, string>();
+            foreach (var e in db.RootGroup.GetEntries(true))
+                if (db.RecycleBinUuid == null || e.ParentGroup == null || !e.ParentGroup.Uuid.Equals(db.RecycleBinUuid))
+                {
+                    string title = e.Strings.ReadSafe(PwDefs.TitleField);
+                    string path = e.ParentGroup != null && e.ParentGroup != db.RootGroup ? e.ParentGroup.GetFullPath("/", false) : "";
+                    map[e.Uuid] = path.Length > 0 ? path + "/" + title : title;
+                }
+            return map;
         }
 
         private static Dictionary<PwUuid, DateTime> Snapshot(PwDatabase db)

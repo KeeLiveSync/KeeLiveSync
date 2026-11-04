@@ -47,7 +47,12 @@ PC and a phone app such as KeePassium.
   (file or folder). No need to add it to "My files".
 - **Several databases and accounts** at the same time, each in its own KeePass tab.
 - **Status at a glance.** A small indicator in the status bar ("Live · in sync") with details in its
-  tooltip, and an unobtrusive notice when changes from others were applied.
+  tooltip.
+- **Know what changed – and who changed it.** One notice per sync lists the entries by title
+  ("New: Bank/Checking account", "Changed: Amazon", "Deleted: Old Wi-Fi") and the Microsoft account that
+  saved them. "Show" lists exactly these entries across all groups, like search results. Notices stack,
+  pause while the mouse is over them, and are collected while KeePass is minimized or in the tray.
+  "Recent changes" in the status bar menu shows the last 20 syncs again (kept in memory only).
 - **Sign-in reminder.** If the Microsoft sign-in has expired, a notice offers to sign in again; until
   then you keep working with the local copy.
 - **Clean diagnostics.** Errors and events are always logged; a detailed log can be switched on in the
@@ -229,6 +234,12 @@ in einer App wie KeePassium. Genau hier gehen im Alltag Einträge verloren:
 - **Alles im Blick.** Unten in der Statusleiste steht „Live · synchron“; der Tooltip zeigt den letzten
   Abgleich, wer zuletzt geändert hat und ob die Live-Verbindung steht. Läuft die Microsoft-Anmeldung ab,
   erscheint ein Hinweis mit „Jetzt anmelden“ – bis dahin arbeitest du mit der lokalen Kopie weiter.
+- **Wer hat was geändert.** Eine Einblendung pro Abgleich nennt die Einträge mit Titel („Neu:
+  Banken/Girokonto“, „Geändert: Amazon“, „Gelöscht: Altes WLAN“) und das Microsoft-Konto, das gespeichert
+  hat. „Zeigen“ listet genau diese Einträge über alle Gruppen hinweg, wie ein Suchergebnis. Mehrere
+  Einblendungen stapeln sich, bleiben stehen, solange die Maus darauf ist, und werden gesammelt, solange
+  KeePass minimiert oder im Infobereich ist. „Letzte Änderungen“ im Menü der Statusanzeige zeigt die letzten
+  20 Abgleiche erneut (nur im Speicher, nicht auf der Festplatte).
 - **Sieben Sprachen.** Deutsch, Englisch, Französisch, Spanisch, Italienisch, Niederländisch und Polnisch –
   KeeLiveSync folgt automatisch der Sprache von KeePass. Verbesserungen an den Übersetzungen sind
   willkommen (siehe „Translations“ oben).

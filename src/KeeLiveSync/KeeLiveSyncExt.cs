@@ -46,9 +46,14 @@ namespace KeeLiveSync
             _engine.RemoteChangesApplied += OnRemoteChangesApplied;
             _engine.ProblemOccurred += OnProblem;
             _badge = new StatusBadge(host.MainWindow, _engine);
+            _badge.History = RecentChanges;
             _badge.OptionsRequested += ShowOptions;
             _badge.SignInRequested += ReSignIn;
             _engine.SignInNeeded += OnSignInNeeded;
+            // im Infobereich/minimiert keine Einblendungen; beim Zurückholen gesammelt anzeigen
+            host.MainWindow.Resize += (s, e) => ShowPending();
+            host.MainWindow.VisibleChanged += (s, e) => ShowPending();
+            host.MainWindow.Activated += (s, e) => ShowPending();
 
             _openItem = new ToolStripMenuItem(Text.T("Aus der Cloud öffnen (KeeLiveSync) …", "Open from the cloud (KeeLiveSync) …"),
                 Theme.Logo(Theme.ScaleScreen(16)), (s, e) => ShowOpen());
@@ -89,21 +94,140 @@ namespace KeeLiveSync
             _badge.Update();
         }
 
-        private void OnRemoteChangesApplied(Session s, string summary, List<KeePassLib.PwUuid> added)
+        /// <summary>Übernommene Änderungen dieser KeePass-Sitzung (nur im Speicher – Eintragstitel nicht auf die Platte)</summary>
+        private readonly List<Tuple<DateTime, Session, ChangeSet, string>> _history = new List<Tuple<DateTime, Session, ChangeSet, string>>();
+        private const int HistorySize = 20;
+
+        private void OnRemoteChangesApplied(Session s, ChangeSet changes)
         {
+            _history.Insert(0, Tuple.Create(DateTime.Now, s, changes, s.Link.LastRemoteBy));
+            if (_history.Count > HistorySize) _history.RemoveAt(_history.Count - 1);
             if (!Settings.NotifyRemoteChanges) return;
+            if (WindowHidden)
+            {
+                Tuple<ChangeSet, string> pending;
+                string who = s.Link.LastRemoteBy;
+                if (_pending.TryGetValue(s, out pending))
+                    _pending[s] = Tuple.Create(Merge(pending.Item1, changes), pending.Item2 == who ? who : null);
+                else
+                    _pending[s] = Tuple.Create(changes, who);
+                return;
+            }
+            ShowChanges(s, changes, s.Link.LastRemoteBy);
+        }
+
+        /// <summary>Gesammelte Änderungen, solange KeePass minimiert oder im Infobereich ist (je Datenbank; Person null = mehrere)</summary>
+        private readonly Dictionary<Session, Tuple<ChangeSet, string>> _pending = new Dictionary<Session, Tuple<ChangeSet, string>>();
+        private Action _pendingProblem;
+
+        private bool WindowHidden
+        {
+            get { return !_host.MainWindow.Visible || _host.MainWindow.WindowState == FormWindowState.Minimized; }
+        }
+
+        private void ShowPending()
+        {
+            if (WindowHidden) return;
+            if (_pending.Count == 1)
+            {
+                var only = _pending.First();
+                _pending.Clear();
+                ShowChanges(only.Key, only.Value.Item1, only.Value.Item2);
+            }
+            else if (_pending.Count > 1)
+            {
+                var lines = _pending.Select(kv => kv.Key.Link.Name + ":  " + Counts(kv.Value.Item1)).ToList();
+                _pending.Clear();
+                Toast.Show(_host.MainWindow, Text.T("Änderungen in {0} Datenbanken", "Changes in {0} databases", lines.Count),
+                    string.Join("\n", lines) + "\n" + Text.T("Einzelheiten: Statusleiste → Letzte Änderungen", "Details: status bar → Recent changes"));
+            }
+            if (_pendingProblem != null)
+            {
+                var p = _pendingProblem;
+                _pendingProblem = null;
+                p();
+            }
+        }
+
+        /// <summary>Zwei Abgleiche zusammenfassen; was später gelöscht wurde, zählt nicht mehr als neu oder geändert</summary>
+        private static ChangeSet Merge(ChangeSet a, ChangeSet b)
+        {
+            var m = new ChangeSet();
+            var removed = new HashSet<KeePassLib.PwUuid>(a.Removed.Concat(b.Removed).Select(kv => kv.Key));
+            var added = new HashSet<KeePassLib.PwUuid>();
+            foreach (var kv in a.Added.Concat(b.Added))
+                if (!removed.Contains(kv.Key) && added.Add(kv.Key)) m.Added.Add(kv);
+            var restored = new HashSet<KeePassLib.PwUuid>();
+            foreach (var kv in a.Restored.Concat(b.Restored))
+                if (!removed.Contains(kv.Key) && !added.Contains(kv.Key) && restored.Add(kv.Key)) m.Restored.Add(kv);
+            var changed = new HashSet<KeePassLib.PwUuid>();
+            foreach (var kv in a.Changed.Concat(b.Changed))
+                if (!removed.Contains(kv.Key) && !added.Contains(kv.Key) && !restored.Contains(kv.Key) && changed.Add(kv.Key)) m.Changed.Add(kv);
+            var gone = new HashSet<KeePassLib.PwUuid>();
+            var newlyAdded = new HashSet<KeePassLib.PwUuid>(a.Added.Concat(b.Added).Select(kv => kv.Key));
+            foreach (var kv in a.Removed.Concat(b.Removed))
+                if (!newlyAdded.Contains(kv.Key) && gone.Add(kv.Key)) m.Removed.Add(kv);
+            return m;
+        }
+
+        private static string Counts(ChangeSet c)
+        {
+            var parts = new List<string>();
+            if (c.Added.Count > 0) parts.Add(Text.T("{0} neu", "{0} new", c.Added.Count));
+            if (c.Changed.Count > 0) parts.Add(Text.T("{0} geändert", "{0} changed", c.Changed.Count));
+            if (c.Removed.Count > 0) parts.Add(Text.T("{0} gelöscht", "{0} deleted", c.Removed.Count));
+            if (c.Restored.Count > 0) parts.Add(Text.T("{0} wiederhergestellt", "{0} restored", c.Restored.Count));
+            return string.Join(", ", parts);
+        }
+
+        private List<KeyValuePair<string, Action>> RecentChanges()
+        {
+            var list = new List<KeyValuePair<string, Action>>();
+            foreach (var h in _history)
+            {
+                var item = h;
+                var me = Accounts.Find(h.Item2.Link.AccountId);
+                string who = string.IsNullOrEmpty(h.Item4) || (me != null && h.Item4 == me.Name)
+                    ? Text.T("du auf einem anderen Gerät", "you on another device") : h.Item4;
+                string text = h.Item1.ToString("t", Text.Culture) + "  ·  " + h.Item2.Link.Name + "  ·  " + who + ":  " + Counts(h.Item3);
+                list.Add(new KeyValuePair<string, Action>(text, () => ShowChanges(item.Item2, item.Item3, item.Item4)));
+            }
+            return list;
+        }
+
+        private void ShowChanges(Session s, ChangeSet changes, string who)
+        {
             var me = Accounts.Find(s.Link.AccountId);
-            string who = s.Link.LastRemoteBy;
-            if (me != null && who == me.Name) who = Text.T("Von einem anderen Gerät", "From another device");
-            bool show = added.Count > 0;
-            var t = Toast.Show(_host.MainWindow, Text.T("Änderungen übernommen", "Changes applied"),
-                (string.IsNullOrEmpty(who) ? "" : who + ": ") + summary + "  ·  " + s.Link.Name,
+            string title = string.IsNullOrEmpty(who) || (me != null && who == me.Name)
+                ? Text.T("Änderungen übernommen · {0}", "Changes applied · {0}", s.Link.Name)
+                : Text.T("Änderungen von {0} · {1}", "Changes by {0} · {1}", who, s.Link.Name);
+            var lines = new List<string>();
+            if (changes.Added.Count > 0) lines.Add(Text.T("Neu: {0}", "New: {0}", Names(changes.Added)));
+            if (changes.Changed.Count > 0) lines.Add(Text.T("Geändert: {0}", "Changed: {0}", Names(changes.Changed)));
+            if (changes.Removed.Count > 0) lines.Add(Text.T("Gelöscht: {0}", "Deleted: {0}", Names(changes.Removed)));
+            if (changes.Restored.Count > 0) lines.Add(Text.T("Wiederhergestellt: {0}", "Restored: {0}", Names(changes.Restored)));
+            var showable = changes.Showable;
+            bool show = showable.Count > 0;
+            var t = Toast.Show(_host.MainWindow, title, string.Join("\n", lines),
                 show ? Text.T("Zeigen", "Show") : null, null, show ? 10000 : 0);
-            if (t != null && show) t.ActionClicked += () => _engine.ShowEntries(s, added);
+            if (t != null && show) t.ActionClicked += () => _engine.ShowEntries(s, showable);
+        }
+
+        /// <summary>„Amazon, Sparkasse und 3 weitere“ – höchstens drei Titel</summary>
+        private static string Names(List<KeyValuePair<KeePassLib.PwUuid, string>> entries)
+        {
+            var titles = entries.Select(kv => string.IsNullOrEmpty(kv.Value) ? Text.T("(ohne Titel)", "(untitled)") : Text.T("„{0}“", "\"{0}\"", kv.Value)).ToList();
+            string shown = string.Join(", ", titles.Take(3));
+            return titles.Count > 3 ? Text.T("{0} und {1} weitere", "{0} and {1} more", shown, titles.Count - 3) : shown;
         }
 
         private void OnProblem(Session s, string text)
         {
+            if (WindowHidden)
+            {
+                _pendingProblem = () => OnProblem(s, text);
+                return;
+            }
             bool key = s.KeyChanged;
             var t = key
                 ? Toast.Show(_host.MainWindow, Text.T("Neuer Hauptschlüssel für „{0}“", "New master key for \"{0}\"", s.Link.Name),

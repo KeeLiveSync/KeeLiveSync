@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] – 2026-11-04
+
+### Added
+- One notice per sync with the titles of new, changed, deleted and restored entries (including the
+  group path) and the Microsoft account that saved them.
+- "Show" lists exactly these entries across all groups, like search results; the status bar explains
+  how to return. The group tree is left as it is.
+- "Recent changes" in the status bar menu: the last 20 syncs with time, database, person and counts;
+  a click shows the notice again. Kept in memory only – entry titles are never written to disk.
+- While KeePass is minimized or in the tray, notices are collected and shown as one summary when the
+  window is restored.
+
+### Changed
+- Notices stack instead of covering each other and stay open while the mouse is over them.
+- Entry titles in notices are quoted; changes from your own account on another device are labelled as such.
+
 ## [0.3.0] – 2026-11-04
 
 ### Added
@@ -87,7 +103,8 @@ First public version.
 - Update check through KeePass (`keepass.version`).
 - German and English UI.
 
-[Unreleased]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.1.2...v0.2.0

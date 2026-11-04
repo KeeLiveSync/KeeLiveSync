@@ -132,8 +132,9 @@ $opt.Close()
 $host1 = New-Object Windows.Forms.Form
 $host1.Size = New-Object Drawing.Size 560, 220; $host1.BackColor = [Drawing.Color]::FromArgb(240, 240, 240)
 Show-Offscreen $host1
-$summary = (Plural 1 "{0} neuer Eintrag" "{0} neue Einträge" "{0} new entry" "{0} new entries") + ", " + (Plural 2 "{0} geändert" "{0} geändert" "{0} changed" "{0} changed")
-$toast = ($asm.GetType("KeeLiveSync.UI.Toast").GetMethods($F) | Where-Object { $_.Name -eq "Show" -and $_.IsStatic -and $_.GetParameters().Count -eq 5 }).Invoke($null, [object[]]@($host1.PSObject.BaseObject, (T "Änderungen übernommen" "Changes applied"), ("Sam Morgan: " + $summary + "  ·  Family.kdbx"), $null, $null))
+$toastTitle = (T 'Änderungen von {0} · {1}' 'Changes by {0} · {1}').Replace("{0}", "Sam Morgan").Replace("{1}", "Family.kdbx")
+$toastBody = ((T 'Neu: {0}' 'New: {0}').Replace("{0}", "Electricity")) + "`n" + ((T 'Geändert: {0}' 'Changed: {0}').Replace("{0}", "Amazon, Bank")) + "`n" + ((T 'Gelöscht: {0}' 'Deleted: {0}').Replace("{0}", "Old Wi-Fi"))
+$toast = ($asm.GetType("KeeLiveSync.UI.Toast").GetMethods($F) | Where-Object { $_.Name -eq "Show" -and $_.IsStatic -and $_.GetParameters().Count -eq 6 }).Invoke($null, [object[]]@($host1.PSObject.BaseObject, $toastTitle, $toastBody, (T "Zeigen" "Show"), $null, [int]0))
 Pump 300
 Save-Form $toast "notification.png"
 $toast.Close(); $host1.Close()

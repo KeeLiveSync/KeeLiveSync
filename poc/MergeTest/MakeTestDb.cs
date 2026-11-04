@@ -1,5 +1,5 @@
 // Legt eine Test-Datenbank an (Passwort „test“, keine echten Daten): MergeTest.exe make <datei> [anzahl]
-// oder ändert/ergänzt Einträge in einer vorhandenen: MergeTest.exe touch <datei> <titel> <passwort>
+// oder ändert/ergänzt Einträge in einer vorhandenen: MergeTest.exe touch <datei> <titel> <passwort> [gruppe]
 // oder löscht einen Eintrag endgültig (mit Löschvermerk): MergeTest.exe delete <datei> <titel>
 
 using System.IO;
@@ -17,6 +17,9 @@ namespace MergeTest
         {
             var key = new CompositeKey();
             key.AddUserKey(new KcpPassword("test"));
+            // Testdatenbank mit Schlüsseldatei: Umgebungsvariable MERGETEST_KEYFILE auf den Pfad setzen
+            string keyFile = System.Environment.GetEnvironmentVariable("MERGETEST_KEYFILE");
+            if (!string.IsNullOrEmpty(keyFile)) key.AddUserKey(new KcpKeyFile(keyFile));
             if (args[0] == "make")
             {
                 string path = args[1];
@@ -56,7 +59,12 @@ namespace MergeTest
                 {
                     found = new PwEntry(true, true);
                     found.Strings.Set(PwDefs.TitleField, new ProtectedString(false, args[2]));
-                    db.RootGroup.AddEntry(found, true);
+                    // optional 5. Argument: Name einer Gruppe direkt unter der Wurzel
+                    PwGroup target = db.RootGroup;
+                    if (args.Length > 4)
+                        foreach (var g in db.RootGroup.Groups)
+                            if (g.Name == args[4]) target = g;
+                    target.AddEntry(found, true);
                 }
                 else
                 {

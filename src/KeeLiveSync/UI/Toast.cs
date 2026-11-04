@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace KeeLiveSync.UI
@@ -18,6 +20,7 @@ namespace KeeLiveSync.UI
         private readonly Color _accent;
         private Rectangle _actionRect;
         private Rectangle _closeRect;
+        private bool _paused;
 
         internal event Action ActionClicked;
 
@@ -55,6 +58,16 @@ namespace KeeLiveSync.UI
             Cursor = Cursors.Hand;
             _close = new Timer { Interval = 6000 };
             _close.Tick += (s, e) => Close();
+            // solange die Maus darüber ist, nicht ausblenden
+            MouseEnter += (s, e) =>
+            {
+                _paused = _close.Enabled;
+                _close.Stop();
+            };
+            MouseLeave += (s, e) =>
+            {
+                if (_paused) _close.Start();
+            };
             MouseClick += (s, e) =>
             {
                 if (_closeRect.Contains(e.Location) || _actionText == null)
@@ -80,9 +93,9 @@ namespace KeeLiveSync.UI
             using (var logo = Theme.Logo(icon)) g.DrawImage(logo, 16 * k, 16 * k);
             using (var f = Theme.SemiboldFont(10f))
             using (var ink = new SolidBrush(Theme.Ink))
-                g.DrawString(_title, f, ink, new RectangleF(60 * k, 14 * k, Width - 90 * k, 22 * k));
+                g.DrawString(_title, f, ink, new RectangleF(60 * k, 14 * k, Width - 90 * k, TitleHeight(g, k)));
             using (var muted = new SolidBrush(Theme.Muted))
-                g.DrawString(_body, Font, muted, new RectangleF(60 * k, 36 * k, Width - 72 * k, BodyHeight(g, k)));
+                g.DrawString(_body, Font, muted, new RectangleF(60 * k, BodyTop(g, k), Width - 72 * k, BodyHeight(g, k)));
             _closeRect = new Rectangle((int)(Width - 28 * k), (int)(10 * k), (int)(18 * k), (int)(18 * k));
             using (var pen = new Pen(Theme.Muted, 1.4f * k))
             {
@@ -105,6 +118,18 @@ namespace KeeLiveSync.UI
             }
         }
 
+        /// <summary>Titel darf umbrechen (lange Namen von Datenbank oder Person)</summary>
+        private float TitleHeight(Graphics g, float k)
+        {
+            using (var f = Theme.SemiboldFont(10f))
+                return (float)Math.Ceiling(g.MeasureString(_title, f, (int)(Width - 90 * k)).Height);
+        }
+
+        private float BodyTop(Graphics g, float k)
+        {
+            return 14 * k + TitleHeight(g, k) + 2 * k;
+        }
+
         private float BodyHeight(Graphics g, float k)
         {
             return (float)Math.Ceiling(g.MeasureString(_body, Font, (int)(Width - 72 * k)).Height);
@@ -116,7 +141,7 @@ namespace KeeLiveSync.UI
             float k = DeviceDpi / 96f;
             using (var g = CreateGraphics())
             {
-                float h = 36 * k + BodyHeight(g, k) + (_actionText == null ? 14 * k : 50 * k);
+                float h = BodyTop(g, k) + BodyHeight(g, k) + (_actionText == null ? 14 * k : 50 * k);
                 Height = Math.Max((int)(78 * k), (int)Math.Ceiling(h));
             }
         }
@@ -127,11 +152,9 @@ namespace KeeLiveSync.UI
             if (owner == null || owner.IsDisposed || !owner.Visible) return null;
             var t = new Toast(title, body, actionText, accent ?? Theme.Accent);
             t.FitHeight();
-            var area = owner.WindowState == FormWindowState.Minimized
-                ? Screen.FromControl(owner).WorkingArea
-                : owner.RectangleToScreen(owner.ClientRectangle);
-            int margin = Theme.ScaleScreen(16);
-            t.Location = new Point(area.Right - t.Width - margin, area.Bottom - t.Height - margin - Theme.ScaleScreen(24));
+            t._owner = owner;
+            OpenToasts.Add(t);
+            Arrange(owner);
             t.Show(owner);
             if (actionText == null || autoCloseMs > 0)
             {
@@ -141,9 +164,30 @@ namespace KeeLiveSync.UI
             return t;
         }
 
+        /// <summary>Offene Einblendungen, älteste zuerst; neue stapeln sich darüber</summary>
+        private static readonly List<Toast> OpenToasts = new List<Toast>();
+        private Form _owner;
+
+        private static void Arrange(Form owner)
+        {
+            if (owner == null || owner.IsDisposed) return;
+            var area = owner.WindowState == FormWindowState.Minimized
+                ? Screen.FromControl(owner).WorkingArea
+                : owner.RectangleToScreen(owner.ClientRectangle);
+            int margin = Theme.ScaleScreen(16), gap = Theme.ScaleScreen(8);
+            int bottom = area.Bottom - margin - Theme.ScaleScreen(24);
+            foreach (var t in OpenToasts.Where(x => x._owner == owner))
+            {
+                t.Location = new Point(area.Right - t.Width - margin, bottom - t.Height);
+                bottom -= t.Height + gap;
+            }
+        }
+
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             _close.Dispose();
+            OpenToasts.Remove(this);
+            Arrange(_owner);
             base.OnFormClosed(e);
         }
     }

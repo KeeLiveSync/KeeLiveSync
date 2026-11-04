@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -19,6 +20,9 @@ namespace KeeLiveSync.UI
 
         internal event Action OptionsRequested;
         internal event Action<string> SignInRequested;
+
+        /// <summary>Letzte Änderungen für das Menü: Text und Aktion (neueste zuerst)</summary>
+        internal Func<List<KeyValuePair<string, Action>>> History;
 
         internal StatusBadge(MainForm main, SyncEngine engine)
         {
@@ -98,6 +102,14 @@ namespace KeeLiveSync.UI
                 item.Font = Theme.SemiboldFont(9f);
             }
             menu.Items.Add(Text.T("Jetzt abgleichen", "Sync now"), null, (o, e) => _engine.Check(s, "manuell"));
+            var history = History != null ? History() : new List<KeyValuePair<string, Action>>();
+            var recent = new ToolStripMenuItem(Text.T("Letzte Änderungen", "Recent changes")) { Enabled = history.Count > 0 };
+            foreach (var h in history)
+            {
+                var action = h.Value;
+                recent.DropDownItems.Add(h.Key, null, (o, e) => action());
+            }
+            menu.Items.Add(recent);
             menu.Items.Add(Text.T("Protokoll öffnen", "Open log"), null, (o, e) => OptionsForm.OpenLogFolder());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(Text.T("KeeLiveSync-Optionen …", "KeeLiveSync options …"), null, (o, e) =>
