@@ -145,15 +145,118 @@ by Microsoft or the KeePass project.
 
 ## Deutsch
 
-KeeLiveSync ist ein Plugin für KeePass 2, das eine Datenbank in OneDrive **sofort aus einer lokalen
-Kopie öffnet** und sie **live abgleicht**. Änderungen anderer Personen oder Geräte meldet Microsoft per
-Push, und KeeLiveSync führt sie im laufenden Betrieb mit KeePass' eigener Synchronisation zusammen. In
-der Liste erscheinen oder verschwinden nur die betroffenen Einträge; nichts wird grau, die
-Scrollposition bleibt.
+### Worum es geht
 
-Hochgeladen wird mit Versionsprüfung, so dass gleichzeitige Änderungen zusammengeführt statt
-überschrieben werden. Hat eine Handy-App die Datei trotzdem überschrieben, holt KeeLiveSync die
-übersprungenen Versionen aus dem OneDrive-Versionsverlauf und stellt verlorene Einträge wieder her.
+Eine KeePass-Datenbank, die zwei oder mehr Menschen gemeinsam nutzen – etwa im Haushalt oder in einem
+kleinen Team –, liegt meist in OneDrive. Jeder hat sie am eigenen PC in KeePass offen, dazu auf dem Handy
+in einer App wie KeePassium. Genau hier gehen im Alltag Einträge verloren:
 
-**Installation:** `KeeLiveSync.dll` aus dem neuesten Release in den `Plugins`-Ordner von KeePass
-kopieren und KeePass neu starten. Danach: **Datei → Öffnen → Aus der Cloud öffnen (KeeLiveSync) …**
+- Zwei Geräte speichern kurz nacheinander. Das zweite überschreibt die Datei – der Eintrag vom ersten
+  Gerät ist weg, oder es entsteht eine Konfliktkopie, die niemand bemerkt.
+- Am PC ist die Datenbank stundenlang offen. Was jemand anderes inzwischen eingetragen hat, sieht man erst
+  nach dem Schließen und erneuten Öffnen – und speichert man vorher selbst, überschreibt man es.
+- Andere Plugins laden die Datei bei jedem Öffnen erst aus der Cloud (Wartezeit) und bemerken spätere
+  Änderungen gar nicht.
+
+**KeeLiveSync löst das:** Die Datenbank öffnet sofort, bleibt im Hintergrund auf dem neuesten Stand, und
+Änderungen von allen Seiten werden zusammengeführt statt überschrieben.
+
+### Was du davon hast
+
+- **Sofort offen.** Die Datenbank öffnet aus einer lokalen Kopie ohne Wartezeit; den Abgleich mit der
+  Cloud erledigt KeeLiveSync danach.
+- **Live wie bei iCloud.** Legt jemand anderes am Handy oder PC einen Eintrag an, erscheint er bei dir
+  nach etwa 30 Sekunden in der offenen Liste – ohne Neuladen, ohne Ausgrauen; Scrollposition und
+  markierter Eintrag bleiben. Gelöschte Einträge verschwinden genauso. Eine dezente Einblendung sagt, wer
+  was geändert hat.
+- **Kein Speichern-Drücken nötig** (Option, standardmäßig an). Etwa eine Sekunde nach „OK“ ist die
+  Änderung gespeichert und in der Cloud – auch wenn du KeePass direkt danach schließt.
+- **Keine verlorenen Einträge bei gleichzeitigem Speichern.** Speichern zwei Geräte fast gleichzeitig,
+  wird nichts überschrieben: Beide Änderungen landen in der Datenbank (Details unten).
+- **Schutz vor dem Handy-„Überschreiben“.** Hat eine App die Datei ohne Zusammenführen überschrieben,
+  holt KeeLiveSync den verlorenen Stand aus dem OneDrive-Versionsverlauf zurück.
+- **Rücksicht beim Bearbeiten.** Während du einen Eintrag bearbeitest, wartet KeeLiveSync mit fremden
+  Änderungen und führt sie erst nach dem Schließen des Dialogs zusammen.
+- **Geteilte Datenbanken ohne Umweg.** Wer eine Datenbank freigegeben bekommen hat, fügt einfach den
+  OneDrive-Freigabelink ein – „Zu meinen Dateien hinzufügen“ ist nicht nötig.
+- **Alles im Blick.** Unten in der Statusleiste steht „Live · synchron“; der Tooltip zeigt den letzten
+  Abgleich, wer zuletzt geändert hat und ob die Live-Verbindung steht. Läuft die Microsoft-Anmeldung ab,
+  erscheint ein Hinweis mit „Jetzt anmelden“ – bis dahin arbeitest du mit der lokalen Kopie weiter.
+
+### So funktioniert es technisch
+
+1. **Lokale Kopie zuerst.** Beim ersten Öffnen lädt KeeLiveSync die Datei einmal herunter und legt sie in
+   `%APPDATA%\KeeLiveSync\cache` ab. KeePass arbeitet immer mit dieser Kopie – deshalb öffnet die
+   Datenbank sofort und lässt sich auch offline nutzen.
+2. **Versionskennung statt ganzer Dateien.** OneDrive vergibt für jeden Inhaltsstand eine Kennung (cTag).
+   KeeLiveSync merkt sich, welchen Stand es zuletzt eingeführt hat. Nur wenn die Kennung in der Cloud
+   abweicht, wird heruntergeladen.
+3. **Push statt Zeitschaltuhr.** Über Microsoft Graph hält KeeLiveSync eine Live-Verbindung (socket.io)
+   offen. Ändert sich etwas im OneDrive, meldet Microsoft das nach etwa 30 Sekunden. KeeLiveSync fragt
+   dann kurz die Versionskennung ab (wenige hundert Byte) und lädt nur bei echter Änderung. Es gibt keinen
+   Timer, der regelmäßig Dateien herunterlädt. Das Abonnement verlängert KeeLiveSync selbst.
+4. **Zusammenführen mit KeePass' eigener Synchronisation.** Die Cloud-Fassung wird mit `PwDatabase.MergeIn`
+   (Modus „Synchronisieren“) in die offene Datenbank eingeführt – derselbe Mechanismus wie
+   „Datei → Synchronisieren“. Neue, geänderte, verschobene und gelöschte Einträge werden übernommen;
+   ändern zwei Seiten denselben Eintrag, gewinnt die neuere Fassung, und die ältere landet im Verlauf des
+   Eintrags. Gelöschtes bleibt gelöscht, weil KeePass Löschungen mit Zeitstempel vermerkt.
+5. **Hochladen mit Versionsprüfung.** Beim Hochladen schickt KeeLiveSync mit, auf welchem Stand die
+   Änderung beruht (`If-Match`). Hat inzwischen jemand anderes gespeichert, lehnt OneDrive das Hochladen
+   ab (412). KeeLiveSync holt dann den neuen Stand, führt zusammen und lädt erneut hoch. So überschreibt
+   ein Hochladen nie einen Stand, den es nicht kannte.
+6. **Versionsverlauf gegen fremdes Überschreiben.** Apps ohne diese Prüfung können die Datei trotzdem
+   überschreiben. Springt die Versionskennung dabei z. B. von 15 auf 17, holt KeeLiveSync Version 16 aus
+   dem OneDrive-Versionsverlauf und führt sie zusätzlich ein (bis zu 10 übersprungene Versionen). Fehlt
+   danach in der Cloud etwas, lädt KeeLiveSync den vollständigen Stand wieder hoch.
+7. **Ruhige Anzeige.** Für die Liste nutzt KeeLiveSync interne KeePass-Funktionen, die einzelne Zeilen
+   einfügen, entfernen oder auffrischen; gespeichert wird ohne die Sperre der Oberfläche. Ändert eine
+   künftige KeePass-Version diese Funktionen, baut KeeLiveSync die Liste einfach vollständig neu auf.
+
+### KeePassium und andere Handy-Apps
+
+KeeLiveSync läuft auf dem PC; das Handy schreibt direkt in OneDrive. Das Zusammenspiel:
+
+- **Am Handy geänderte Einträge** kommen per Push am PC an und werden eingeführt – ganz normal.
+- **Fragt die App beim Speichern** „Datei wurde geändert – Überschreiben / Zusammenführen / Speichern
+  unter“, ist **„Zusammenführen“** die beste Wahl, falls angeboten.
+- **Wählt man doch „Überschreiben“** (oder überschreibt die App ohne Rückfrage), fehlen Einträge, die
+  zwischendurch von einem anderen Gerät kamen, zunächst in der Cloud. Sobald ein PC mit KeeLiveSync die
+  Änderung bemerkt, stellt er sie wieder her – aus seiner lokalen Kopie oder aus dem OneDrive-
+  Versionsverlauf. Genau dieser Fall wurde getestet: KeePassium überschreibt einen Eintrag, der kurz
+  vorher von einem anderen Gerät kam, und KeeLiveSync holt ihn automatisch zurück.
+
+### Was KeeLiveSync zusichert – und wo die Grenzen sind
+
+Zwischen PCs mit KeeLiveSync geht keine Änderung durch Überschreiben verloren: Jedes Hochladen ist an den
+bekannten Stand gebunden, und alles wird zusammengeführt. Getestet sind gleichzeitiges Speichern
+(412-Konflikt), Löschen, Bearbeiten während eines Abgleichs und Schließen mitten im Hochladen.
+
+Die Grenzen, ehrlich benannt:
+
+- Auf Handy-Apps hat KeeLiveSync keinen Einfluss. Was sie überschreiben, holt es aus dem Versionsverlauf
+  zurück – solange OneDrive diese Version noch aufbewahrt, höchstens 10 Versionen übersprungen wurden und
+  sobald ein PC mit KeeLiveSync läuft.
+- Ist „Änderungen sofort speichern“ ausgeschaltet, liegen ungespeicherte Änderungen nur im offenen
+  KeePass, bis du speicherst.
+- KeeLiveSync ersetzt kein Backup deiner Datenbank.
+
+### Sicherheit und Datenschutz
+
+- Die Datenbank verlässt deinen PC nur verschlüsselt, genau so, wie KeePass sie speichert. Dein
+  Hauptpasswort wird nie übertragen.
+- KeeLiveSync spricht nur mit Microsoft (Anmeldung und Microsoft Graph). Es gibt keinen eigenen Server und
+  keine Telemetrie.
+- Die Anmeldung läuft über den Browser (OAuth mit PKCE, ohne Geheimnis im Programm). Das Anmelde-Token
+  liegt mit Windows DPAPI verschlüsselt, lesbar nur für deinen Windows-Benutzer.
+- Das Protokoll enthält nie Passwörter, Tokens oder Datenbankinhalte.
+- Updates: Die Versionsdatei ist signiert, und Releases werden erst nach einer Offline-Signatur
+  veröffentlicht (siehe „Verifying a download“ oben). KeeLiveSync lädt selbst nie Code nach.
+
+### Installation
+
+1. `KeeLiveSync.dll` aus dem [neuesten Release](https://github.com/KeeLiveSync/KeeLiveSync/releases/latest)
+   in den `Plugins`-Ordner von KeePass kopieren und KeePass neu starten.
+2. **Datei → Öffnen → Aus der Cloud öffnen (KeeLiveSync) …**, mit Microsoft anmelden, Datenbank wählen
+   (oder Freigabelink einfügen), Hauptschlüssel eingeben.
+3. Ab dann öffnest du sie wie gewohnt über „Zuletzt geöffnet“. Einstellungen findest du unter
+   **Extras → KeeLiveSync → Optionen** oder per Klick auf die Statusanzeige.
