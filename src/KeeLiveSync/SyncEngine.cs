@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -43,6 +44,10 @@ namespace KeeLiveSync
         public KeePassLib.Keys.CompositeKey ClosingKey;
         /// <summary>Speichern direkt vor dem Schließen: Hochladen übernimmt FinishAfterClose</summary>
         public bool SavingForClose;
+        /// <summary>Zuletzt eingeblendetes Problem (gleiches Problem nur einmal melden)</summary>
+        public string ProblemShown;
+        /// <summary>Cloud-Fassung ist mit einem anderen Hauptschlüssel verschlüsselt</summary>
+        public bool KeyChanged;
         /// <summary>Laufendes Hochladen (Graph-Aufgabe ohne UI-Fortsetzung) und Prüfsumme der hochgeladenen Daten</summary>
         public Tuple<Task<UploadResult>, string> InFlight;
     }
@@ -59,7 +64,10 @@ namespace KeeLiveSync
         private readonly Dictionary<string, PushChannel> _channels = new Dictionary<string, PushChannel>();
 
         internal event Action StateChanged;
-        internal event Action<Session, string> RemoteChangesApplied;
+        /// <summary>Änderungen anderer übernommen: Sitzung, Zusammenfassung, neu hinzugekommene Einträge</summary>
+        internal event Action<Session, string, List<PwUuid>> RemoteChangesApplied;
+        /// <summary>Abgleich gestört (einmal je Problem): Sitzung, Meldung</summary>
+        internal event Action<Session, string> ProblemOccurred;
 
         internal SyncEngine(MainForm main)
         {
@@ -139,16 +147,159 @@ namespace KeeLiveSync
             }
             s.State = state;
             s.StateText = text;
+            bool report = state == SyncState.Error && text != s.ProblemShown;
+            if (state == SyncState.Error) s.ProblemShown = text;
+            else if (state == SyncState.Synced)
+            {
+                s.ProblemShown = null;
+                s.KeyChanged = false;
+            }
             OnUi(() =>
             {
                 var h = StateChanged;
                 if (h != null) h();
+                if (!report) return;
+                var p = ProblemOccurred;
+                if (p != null) p(s, text);
             });
         }
 
         // ---------- Öffnen ----------
 
         /// <summary>Cache-Datei in KeePass öffnen (KeePass fragt den Hauptschlüssel ab)</summary>
+        /// <summary>Verständliche Ursache für die Anzeige; technische Einzelheiten stehen im Protokoll</summary>
+        private static string FriendlyError(Exception ex)
+        {
+            var g = ex as GraphException;
+            if (g != null)
+            {
+                int code = (int)g.Status;
+                if (code == 404) return Text.T("Die Datei wurde in OneDrive nicht gefunden (verschoben oder gelöscht?).",
+                    "The file was not found in OneDrive (moved or deleted?).");
+                if (code == 403) return Text.T("Kein Zugriff mehr auf die Datei in OneDrive (Freigabe aufgehoben?).",
+                    "No access to the file in OneDrive anymore (sharing removed?).");
+                if (code >= 500) return Text.T("OneDrive ist gerade nicht erreichbar.", "OneDrive is currently unavailable.");
+                return Text.T("OneDrive hat die Anfrage abgelehnt (Fehler {0}).", "OneDrive rejected the request (error {0}).", code);
+            }
+            if (ex is IOException || ex is UnauthorizedAccessException)
+                return Text.T("Die lokale Kopie konnte nicht gelesen oder geschrieben werden.", "The local copy could not be read or written.");
+            if (ex is InvalidOperationException) return ex.Message;
+            return Text.T("Unerwarteter Fehler – Details im Protokoll.", "Unexpected error – see the log for details.");
+        }
+
+        /// <summary>Datenbank der Sitzung in den Vordergrund holen</summary>
+        internal void Activate(Session s)
+        {
+            var doc = _main.DocumentManager.FindDocument(s.Db);
+            if (doc != null) _main.MakeDocumentActive(doc);
+        }
+
+        /// <summary>Datenbank nach vorn holen, die Gruppe des ersten Eintrags zeigen, die Einträge markieren und hervorheben</summary>
+        internal void ShowEntries(Session s, List<PwUuid> ids)
+        {
+            var doc = _main.DocumentManager.FindDocument(s.Db);
+            if (doc == null || !s.Db.IsOpen) return;
+            var entries = new PwObjectList<PwEntry>();
+            foreach (var id in ids)
+            {
+                var e = s.Db.RootGroup.FindEntry(id, true);
+                if (e != null) entries.Add(e);
+            }
+            if (entries.UCount == 0) return;
+            _main.MakeDocumentActive(doc);
+            var group = entries.GetAt(0).ParentGroup;
+            if (_main.GetSelectedGroup() != group) _main.UpdateUI(false, doc, true, group, true, null, false);
+            _main.SelectEntries(entries, true, true);
+            _main.EnsureVisibleEntry(entries.GetAt(0).Uuid);
+            Highlight(s, ids);
+        }
+
+        private static readonly Color HighlightColor = Color.FromArgb(214, 240, 236);
+
+        /// <summary>Neue Einträge in der sichtbaren Liste ein paar Sekunden farbig hinterlegen</summary>
+        private void Highlight(Session s, List<PwUuid> ids)
+        {
+            var lv = EntryList;
+            var doc = _main.DocumentManager.FindDocument(s.Db);
+            if (lv == null || ids.Count == 0 || doc == null || _main.DocumentManager.ActiveDocument != doc) return;
+            var set = new HashSet<PwUuid>(ids);
+            var marked = new List<KeyValuePair<ListViewItem, Color>>();
+            foreach (ListViewItem lvi in lv.Items)
+            {
+                var e = EntryOf(lvi);
+                if (e == null || !set.Contains(e.Uuid)) continue;
+                marked.Add(new KeyValuePair<ListViewItem, Color>(lvi, lvi.BackColor));
+                lvi.BackColor = HighlightColor;
+            }
+            if (marked.Count == 0) return;
+            var timer = new Timer { Interval = 5000 };
+            timer.Tick += (o, e) =>
+            {
+                timer.Stop();
+                timer.Dispose();
+                foreach (var m in marked)
+                    if (m.Key.ListView != null && m.Key.BackColor == HighlightColor) m.Key.BackColor = m.Value;
+            };
+            timer.Start();
+        }
+
+        /// <summary>
+        /// Nach einem Schlüsselwechsel in der Cloud: Datenbank schließen (wie Datei → Schließen), die neue Fassung in die lokale
+        /// Kopie holen und neu öffnen – KeePass fragt dann nach dem neuen Hauptschlüssel. Nicht hochgeladene eigene Änderungen
+        /// bleiben als Sicherungsdatei neben der lokalen Kopie erhalten.
+        /// </summary>
+        internal async void ReopenAfterKeyChange(Session s)
+        {
+            var link = s.Link;
+            try
+            {
+                var doc = _main.DocumentManager.FindDocument(s.Db);
+                if (doc != null)
+                {
+                    _main.MakeDocumentActive(doc);
+                    var close = _main.MainMenu.Items.Find("m_menuFileClose", true).FirstOrDefault() as ToolStripMenuItem;
+                    if (close == null)
+                    {
+                        Log.Warn("Menü Datei → Schließen nicht gefunden");
+                        return;
+                    }
+                    close.PerformClick();
+                    if (s.Db.IsOpen)
+                    {
+                        Log.Info("Schließen abgebrochen, Neu-Öffnen entfällt: " + link.Name);
+                        return;
+                    }
+                }
+                if (link.LocalDirty && File.Exists(link.CachePath))
+                {
+                    string backup = Path.Combine(Path.GetDirectoryName(link.CachePath),
+                        Path.GetFileNameWithoutExtension(link.Name) + " (vor Schlüsselwechsel " + DateTime.Now.ToString("yyyy-MM-dd HHmm") + ").kdbx");
+                    File.Copy(link.CachePath, backup, true);
+                    Log.Warn("Nicht hochgeladene Änderungen gesichert: " + backup);
+                    MessageBox.Show(_main, Text.T(
+                        "Die lokale Kopie enthielt Änderungen, die wegen des neuen Hauptschlüssels nicht hochgeladen werden konnten. Sie sind gesichert in:\n\n{0}\n\nDu kannst sie mit Datei → Synchronisieren übernehmen.",
+                        "The local copy contained changes that could not be uploaded because of the new master key. They are saved in:\n\n{0}\n\nYou can apply them with File → Synchronize.", backup),
+                        "KeeLiveSync", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                var item = await Graph.Item(link.AccountId, link.DriveId, link.ItemId);
+                byte[] data = await Graph.Download(link.AccountId, link.DriveId, link.ItemId);
+                File.WriteAllBytes(link.CachePath, data);
+                link.CacheCTag = item.CTag;
+                link.CacheModified = item.Modified;
+                link.LocalDirty = false;
+                link.LastSync = DateTime.Now;
+                Links.Upsert(link);
+                Links.Save();
+                Log.Info("Lokale Kopie nach Schlüsselwechsel erneuert, öffne neu: " + link.Name);
+                OpenLink(link);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Neu öffnen nach Schlüsselwechsel fehlgeschlagen: " + link.Name, ex);
+                MessageBox.Show(_main, Log.Describe(ex), "KeeLiveSync", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
         internal void OpenLink(Link link)
         {
             string target = Path.GetFullPath(link.CachePath);
@@ -267,7 +418,7 @@ namespace KeeLiveSync
             {
                 _sessions.Remove(s.Db);
                 Log.Info("Geschlossen: " + s.Link.Name);
-                if (s.Link.LocalDirty && s.ClosingKey != null) FinishAfterClose(s);
+                if (s.Link.LocalDirty && s.ClosingKey != null && !s.KeyChanged) FinishAfterClose(s);
                 else s.ClosingKey = null;
             }
             foreach (var key in _channels.Keys.ToList())
@@ -347,7 +498,7 @@ namespace KeeLiveSync
             catch (Exception ex)
             {
                 Log.Error("Abgleich fehlgeschlagen: " + s.Link.Name, ex);
-                SetState(s, SyncState.Error, Log.Describe(ex));
+                SetState(s, SyncState.Error, FriendlyError(ex));
             }
             finally
             {
@@ -490,8 +641,8 @@ namespace KeeLiveSync
                 catch (Exception ex)
                 {
                     Log.Error("Cloud-Fassung lässt sich mit dem aktuellen Hauptschlüssel nicht öffnen: " + s.Link.Name, ex);
-                    SetState(s, SyncState.Error, Text.T("Hauptschlüssel in der Cloud geändert – Datenbank schließen und neu öffnen",
-                        "Master key changed in the cloud – close and reopen the database"));
+                    s.KeyChanged = true;
+                    SetState(s, SyncState.Error, Text.T("Neuer Hauptschlüssel – bitte neu öffnen", "New master key – please reopen"));
                     return;
                 }
 
@@ -538,10 +689,12 @@ namespace KeeLiveSync
                 s.Link.LastRemoteBy = item.ModifiedBy;
                 Log.Info("Zusammengeführt: " + s.Link.Name + " – " + (summary.Length == 0 ? "keine sichtbaren Änderungen" : summary));
 
+                var added = after.Keys.Where(k => !before.ContainsKey(k)).ToList();
                 if (summary.Length > 0 || GroupSignature(s.Db) != groupsBefore)
                 {
                     if (GroupSignature(s.Db) != groupsBefore || !RefreshEntriesOnly(s, view))
                         RefreshView(s, view, true);
+                    Highlight(s, added);
                 }
 
                 if (!wasModified)
@@ -561,7 +714,7 @@ namespace KeeLiveSync
                 if (summary.Length > 0)
                 {
                     var h = RemoteChangesApplied;
-                    if (h != null) h(s, summary);
+                    if (h != null) h(s, summary, added);
                 }
             }
             finally
@@ -626,10 +779,18 @@ namespace KeeLiveSync
                 var doc = _main.DocumentManager.FindDocument(s.Db);
                 var lv = EntryList;
                 var group = _main.GetSelectedGroup();
-                if (doc == null || _main.DocumentManager.ActiveDocument != doc || lv == null || group == null) return false;
+                if (doc == null || _main.DocumentManager.ActiveDocument != doc || lv == null || group == null)
+                {
+                    Log.Debug("Liste nicht angepasst: Datenbank nicht im Vordergrund – KeePass baut sie beim Wechsel auf: " + s.Link.Name);
+                    return false;
+                }
 
                 // Nur, wenn die Liste vor dem Zusammenführen genau die Einträge der markierten Gruppe zeigte (keine Suche o. Ä.)
-                if (!view.ListIsGroup || view.Group != group) return false;
+                if (!view.ListIsGroup || view.Group != group)
+                {
+                    Log.Debug("Liste nicht angepasst: zeigt keine einzelne Gruppe (Suche o. Ä.) – vollständiger Neuaufbau");
+                    return false;
+                }
                 var shown = lv.Items.Cast<ListViewItem>().Select(EntryOf).ToList();
                 if (shown.Any(e => e == null)) return false;
 
@@ -973,7 +1134,7 @@ namespace KeeLiveSync
             catch (Exception ex)
             {
                 Log.Error("Hochladen fehlgeschlagen: " + s.Link.Name, ex);
-                SetState(s, SyncState.Error, Log.Describe(ex));
+                SetState(s, SyncState.Error, FriendlyError(ex));
             }
             finally
             {

@@ -62,9 +62,8 @@ PC and a phone app such as KeePassium.
 
 - KeePass 2.x on Windows (developed and tested with **KeePass 2.61.1**), .NET Framework 4.8
 - A Microsoft account with OneDrive
-  - Tested with **personal** Microsoft accounts.
-  - Work or school accounts (OneDrive for Business) are not tested yet; your organization may have to
-    approve the app first.
+  - Tested with personal Microsoft accounts and with a Microsoft 365 work account (OneDrive for
+    Business). For work accounts, an administrator may have to approve the app once.
 
 ## Installation
 
@@ -98,6 +97,16 @@ Options are under **Tools → KeeLiveSync → Options** or by clicking the statu
 Phone apps write the file directly to OneDrive. If an app asks what to do because the file has
 changed, choose **Merge** where offered. If it overwrites anyway, KeeLiveSync restores the lost changes
 from the version history the next time a PC with the plugin is online (up to 10 skipped versions).
+
+### Personal and shared databases together
+
+A common setup: everyone has a personal database, and a team or family database is shared. Open both
+with KeeLiveSync – each in its own tab, from the same or different Microsoft accounts. To unlock only
+once, use the [KeeAutoExec](https://keepass.info/plugins.html#keeautoexec) plugin by Dominik Reichl:
+create a group `AutoOpen` in your personal database with an entry for the shared one –
+**URL:** the local copy, e.g. `%APPDATA%\KeeLiveSync\cache\…\shared.kdbx` (the full path is listed under File → Open Recent),
+**Password:** its master password, **User name:** the path of its key file (if any). When you unlock
+your personal database, the shared one opens automatically and KeeLiveSync keeps it in sync.
 
 ## How it works
 
@@ -158,6 +167,18 @@ version history) and to create and modify test databases (password `test`, no re
 KeeLiveSync talks only to Microsoft (sign-in and Microsoft Graph). It has no server of its own, sends
 no telemetry and never transmits your master key – the database is encrypted before it leaves your PC,
 exactly as KeePass saves it.
+
+### Recommendation: protect cloud databases with more than a password
+
+A database in the cloud can be copied by anyone who gets access to your Microsoft account or the shared
+folder – and then attacked offline. Protect it with a **key file or a hardware key** in addition to the
+master password:
+
+- **Key file:** store it only locally on each device (not in OneDrive and not next to the database) and
+  hand it over on a separate path, e.g. a USB stick. Without the key file, a copy of the database is
+  useless even if the password is guessed.
+- **Hardware key** (e.g. YubiKey) via a KeePass plugin, if all your devices and apps support it.
+- In any case: a long, unique master password, and two-factor sign-in for the Microsoft account.
 
 ## License
 
@@ -254,6 +275,18 @@ KeeLiveSync läuft auf dem PC; das Handy schreibt direkt in OneDrive. Das Zusamm
   Versionsverlauf. Genau dieser Fall wurde getestet: KeePassium überschreibt einen Eintrag, der kurz
   vorher von einem anderen Gerät kam, und KeeLiveSync holt ihn automatisch zurück.
 
+### Persönliche und gemeinsame Datenbank zusammen
+
+Ein typischer Aufbau: Jeder hat eine eigene Datenbank, dazu gibt es eine gemeinsame für Familie oder Team.
+Beide lassen sich mit KeeLiveSync öffnen – jede im eigenen Reiter, auch aus verschiedenen
+Microsoft-Konten. Damit man nur einmal entsperren muss, hilft das Plugin
+[KeeAutoExec](https://keepass.info/plugins.html#keeautoexec) von Dominik Reichl: In der eigenen Datenbank
+eine Gruppe `AutoOpen` mit einem Eintrag für die gemeinsame anlegen – **URL:** die lokale Kopie, z. B.
+`%APPDATA%\KeeLiveSync\cache\…\gemeinsam.kdbx` (den vollständigen Pfad zeigt Datei → Zuletzt geöffnet), **Passwort:** deren
+Hauptpasswort, **Benutzername:** der Pfad ihrer Schlüsseldatei (falls vorhanden). Beim Entsperren der
+eigenen Datenbank öffnet sich die gemeinsame automatisch, und KeeLiveSync hält sie synchron. Getestet mit
+Passwort und Schlüsseldatei.
+
 ### Was KeeLiveSync zusichert – und wo die Grenzen sind
 
 Zwischen PCs mit KeeLiveSync geht keine Änderung durch Überschreiben verloren: Jedes Hochladen ist an den
@@ -280,6 +313,19 @@ Die Grenzen, ehrlich benannt:
 - Das Protokoll enthält nie Passwörter, Tokens oder Datenbankinhalte.
 - Updates: Die Versionsdatei ist signiert, und Releases werden erst nach einer Offline-Signatur
   veröffentlicht (siehe „Verifying a download“ oben). KeeLiveSync lädt selbst nie Code nach.
+
+**Empfehlung: Cloud-Datenbanken nicht nur mit einem Passwort schützen.** Eine Datenbank in der Cloud kann
+jeder kopieren, der Zugriff auf dein Microsoft-Konto oder den freigegebenen Ordner bekommt – und dann in
+Ruhe versuchen, das Passwort zu erraten. Sichere sie deshalb zusätzlich mit einer **Schlüsseldatei** oder
+einem **Hardware-Schlüssel**:
+
+- **Schlüsseldatei:** nur lokal auf jedem Gerät ablegen – nicht in OneDrive und nicht neben der Datenbank –
+  und auf getrenntem Weg weitergeben, z. B. per USB-Stick. Ohne sie ist eine kopierte Datenbank wertlos,
+  selbst wenn das Passwort bekannt wird.
+- **Hardware-Schlüssel** (z. B. YubiKey) über ein KeePass-Plugin, sofern alle Geräte und Apps ihn
+  unterstützen.
+- In jedem Fall: ein langes, nur hier verwendetes Hauptpasswort und die Zwei-Faktor-Anmeldung für das
+  Microsoft-Konto.
 
 ### Installation
 

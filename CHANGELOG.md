@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] – 2026-11-04
+
+### Added
+- Notice when a database cannot be synced – also for databases in a background tab – with a clear cause
+  instead of technical error messages, and a button to go to the database.
+- When the master key was changed on another device: notice "New master key" with "Reopen" – closes the
+  database, refreshes the local copy from the cloud and asks for the new key. Changes that could not be
+  uploaded are kept as a backup file.
+- New entries from others are highlighted for a few seconds; the notice offers "Show" to jump to them.
+- README: recommendation to protect cloud databases with a key file or hardware key.
+
+### Changed
+- The log states why the entry list was not updated in place (database in a background tab, search view).
+
+### Tested
+- OneDrive for Business (Microsoft 365 account), two databases from two accounts at the same time, and
+  KeeAutoExec (Auto-Open) with password and key file.
+
 ## [0.2.1] – 2026-11-04
 
 ### Fixed
@@ -69,7 +87,8 @@ First public version.
 - Update check through KeePass (`keepass.version`).
 - German and English UI.
 
-[Unreleased]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.1.1...v0.1.2

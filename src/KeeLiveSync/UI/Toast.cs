@@ -122,7 +122,7 @@ namespace KeeLiveSync.UI
         }
 
         /// <summary>Unten rechts im Fenster von owner einblenden</summary>
-        internal static Toast Show(Form owner, string title, string body, string actionText = null, Color? accent = null)
+        internal static Toast Show(Form owner, string title, string body, string actionText = null, Color? accent = null, int autoCloseMs = 0)
         {
             if (owner == null || owner.IsDisposed || !owner.Visible) return null;
             var t = new Toast(title, body, actionText, accent ?? Theme.Accent);
@@ -133,7 +133,11 @@ namespace KeeLiveSync.UI
             int margin = Theme.ScaleScreen(16);
             t.Location = new Point(area.Right - t.Width - margin, area.Bottom - t.Height - margin - Theme.ScaleScreen(24));
             t.Show(owner);
-            if (actionText == null) t._close.Start();
+            if (actionText == null || autoCloseMs > 0)
+            {
+                if (autoCloseMs > 0) t._close.Interval = autoCloseMs;
+                t._close.Start();
+            }
             return t;
         }
 

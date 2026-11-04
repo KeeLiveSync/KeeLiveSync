@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -43,6 +44,7 @@ namespace KeeLiveSync
 
             _engine = new SyncEngine(host.MainWindow);
             _engine.RemoteChangesApplied += OnRemoteChangesApplied;
+            _engine.ProblemOccurred += OnProblem;
             _badge = new StatusBadge(host.MainWindow, _engine);
             _badge.OptionsRequested += ShowOptions;
             _badge.SignInRequested += ReSignIn;
@@ -87,14 +89,34 @@ namespace KeeLiveSync
             _badge.Update();
         }
 
-        private void OnRemoteChangesApplied(Session s, string summary)
+        private void OnRemoteChangesApplied(Session s, string summary, List<KeePassLib.PwUuid> added)
         {
             if (!Settings.NotifyRemoteChanges) return;
             var me = Accounts.Find(s.Link.AccountId);
             string who = s.Link.LastRemoteBy;
             if (me != null && who == me.Name) who = Text.T("Von einem anderen Gerät", "From another device");
-            Toast.Show(_host.MainWindow, Text.T("Änderungen übernommen", "Changes applied"),
-                (string.IsNullOrEmpty(who) ? "" : who + ": ") + summary + "  ·  " + s.Link.Name);
+            bool show = added.Count > 0;
+            var t = Toast.Show(_host.MainWindow, Text.T("Änderungen übernommen", "Changes applied"),
+                (string.IsNullOrEmpty(who) ? "" : who + ": ") + summary + "  ·  " + s.Link.Name,
+                show ? Text.T("Zeigen", "Show") : null, null, show ? 10000 : 0);
+            if (t != null && show) t.ActionClicked += () => _engine.ShowEntries(s, added);
+        }
+
+        private void OnProblem(Session s, string text)
+        {
+            bool key = s.KeyChanged;
+            var t = key
+                ? Toast.Show(_host.MainWindow, Text.T("Neuer Hauptschlüssel für „{0}“", "New master key for \"{0}\"", s.Link.Name),
+                    Text.T("Die Datenbank wurde auf einem anderen Gerät mit einem neuen Hauptschlüssel gespeichert. Öffne sie neu und gib den neuen Hauptschlüssel ein.",
+                        "The database was saved on another device with a new master key. Reopen it and enter the new master key."),
+                    Text.T("Neu öffnen", "Reopen"), Theme.Warn)
+                : Toast.Show(_host.MainWindow, Text.T("„{0}“ konnte nicht abgeglichen werden", "\"{0}\" could not be synced", s.Link.Name),
+                    Text.T("Deine Änderungen bleiben in der lokalen Kopie erhalten; der nächste Abgleich versucht es erneut. Ursache: {0}",
+                        "Your changes are kept in the local copy; the next sync will try again. Cause: {0}", text),
+                    Text.T("Zur Datenbank", "Go to database"), Theme.Bad);
+            if (t == null) return;
+            if (key) t.ActionClicked += () => _engine.ReopenAfterKeyChange(s);
+            else t.ActionClicked += () => _engine.Activate(s);
         }
 
         private void OnSignInNeeded(string accountId)
