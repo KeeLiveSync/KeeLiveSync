@@ -81,7 +81,7 @@ namespace KeeLiveSync.UI
             };
             var subtitle = new Label
             {
-                AutoSize = false, Location = new Point(78, 44), Size = new Size(560, 22), ForeColor = Theme.Muted,
+                AutoSize = false, Location = new Point(78, 44), Size = new Size(560, 22), ForeColor = Theme.Muted, AutoEllipsis = true,
                 Text = Text_("Öffnet sofort aus dem Zwischenspeicher und hält die Datei live mit OneDrive abgeglichen.",
                     "Opens instantly from the local cache and keeps the file in sync with OneDrive live.")
             };
@@ -229,8 +229,9 @@ namespace KeeLiveSync.UI
             };
         }
 
-        private static string Text_(string de, string en)
+        private static string Text_(string de, string en, params object[] args)
         {
+            if (args.Length > 0) return KeeLiveSync.Text.T(de, en, args);
             return KeeLiveSync.Text.T(de, en);
         }
 
@@ -330,7 +331,7 @@ namespace KeeLiveSync.UI
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(Text_("Weiteres Konto anmelden …", "Sign in another account …"), null, async (s, e) => await SignIn());
             if (_account != null)
-                menu.Items.Add(Text_("„" + _account.Email + "“ abmelden", "Sign out \"" + _account.Email + "\""), null, (s, e) =>
+                menu.Items.Add(Text_("„{0}“ abmelden", "Sign out \"{0}\"", _account.Email), null, (s, e) =>
                 {
                     Accounts.Remove(_account.Id);
                     _account = Accounts.All.FirstOrDefault();
@@ -391,7 +392,7 @@ namespace KeeLiveSync.UI
                     var lvi = new ListViewItem(i.Name, i.IsFolder ? "folder" : "kdbx") { Tag = i };
                     lvi.SubItems.Add(i.Modified == DateTime.MinValue ? "" : KeeLiveSync.Text.Ago(i.Modified) +
                         (string.IsNullOrEmpty(i.ModifiedBy) || i.IsFolder ? "" : " · " + i.ModifiedBy.Split(' ')[0]));
-                    lvi.SubItems.Add(i.IsFolder ? (i.ChildCount + Text_(" Elemente", " items")) : KeeLiveSync.Text.Size(i.Size));
+                    lvi.SubItems.Add(i.IsFolder ? KeeLiveSync.Text.Plural(i.ChildCount, "{0} Element", "{0} Elemente", "{0} item", "{0} items") : KeeLiveSync.Text.Size(i.Size));
                     if (i.IsKdbx) lvi.Font = Theme.SemiboldFont(9.75f);
                     _list.Items.Add(lvi);
                 }
@@ -400,7 +401,7 @@ namespace KeeLiveSync.UI
                 _empty.Visible = !shown.Any(i => i.IsKdbx) && !shown.Any(i => i.IsFolder);
                 int dbs = shown.Count(i => i.IsKdbx);
                 SetBusy(false, dbs > 0
-                    ? dbs + Text_(dbs == 1 ? " Datenbank in diesem Ordner" : " Datenbanken in diesem Ordner", dbs == 1 ? " database in this folder" : " databases in this folder")
+                    ? KeeLiveSync.Text.Plural(dbs, "{0} Datenbank in diesem Ordner", "{0} Datenbanken in diesem Ordner", "{0} database in this folder", "{0} databases in this folder")
                     : "");
             }
             catch (SignInRequiredException ex)
@@ -496,7 +497,7 @@ namespace KeeLiveSync.UI
                     _list.Items.Add(lvi);
                 }
                 _empty.Visible = _list.Items.Count == 0;
-                SetBusy(false, Text_("Freigegeben von ", "Shared by ") + (folder.OwnerName ?? "?"));
+                SetBusy(false, Text_("Freigegeben von {0}", "Shared by {0}", folder.OwnerName ?? "?"));
             }
             catch (Exception ex)
             {
@@ -537,8 +538,10 @@ namespace KeeLiveSync.UI
                 }
                 _linkCardTitle.Text = item.Name;
                 var info = new List<string>();
-                if (!string.IsNullOrEmpty(item.OwnerName)) info.Add(Text_("geteilt von ", "shared by ") + item.OwnerName);
-                info.Add(Text_("geändert ", "modified ") + KeeLiveSync.Text.Ago(item.Modified) + (string.IsNullOrEmpty(item.ModifiedBy) ? "" : Text_(" von ", " by ") + item.ModifiedBy));
+                if (!string.IsNullOrEmpty(item.OwnerName)) info.Add(Text_("geteilt von {0}", "shared by {0}", item.OwnerName));
+                info.Add(string.IsNullOrEmpty(item.ModifiedBy)
+                    ? Text_("geändert {0}", "modified {0}", KeeLiveSync.Text.Ago(item.Modified))
+                    : Text_("geändert {0} von {1}", "modified {0} by {1}", KeeLiveSync.Text.Ago(item.Modified), item.ModifiedBy));
                 info.Add(KeeLiveSync.Text.Size(item.Size));
                 _linkCardInfo.Text = string.Join("  ·  ", info);
                 _linkCard.Visible = true;
@@ -547,7 +550,7 @@ namespace KeeLiveSync.UI
             }
             catch (GraphException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound || ex.Status == System.Net.HttpStatusCode.Forbidden)
             {
-                ShowError(Text_("Kein Zugriff: Ist die Datei für „" + _account.Email + "“ freigegeben?", "No access: is the file shared with \"" + _account.Email + "\"?"));
+                ShowError(Text_("Kein Zugriff: Ist die Datei für „{0}“ freigegeben?", "No access: is the file shared with \"{0}\"?", _account.Email));
             }
             catch (Exception ex)
             {
@@ -599,7 +602,7 @@ namespace KeeLiveSync.UI
         {
             if (_selected == null) return;
             _open.Enabled = false;
-            SetBusy(true, Text_("Öffne „" + _selected.Name + "“ …", "Opening \"" + _selected.Name + "\" …"));
+            SetBusy(true, Text_("Öffne „{0}“ …", "Opening \"{0}\" …", _selected.Name));
             try
             {
                 ResultLink = await _engine.PrepareCache(_account, _selected, text => SetBusy(true, text));

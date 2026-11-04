@@ -43,7 +43,8 @@ PC and a phone app such as KeePassium.
   contents.
 - **KeePass triggers and other plugins keep working.** The quiet save raises the same
   "saving/saved database file" triggers and plugin events as a normal save.
-- German and English UI, following the KeePass language.
+- **Languages:** English, German, French, Spanish, Italian, Dutch and Polish, following the KeePass
+  language (see [Translations](#translations)).
 
 ## Requirements
 
@@ -117,6 +118,19 @@ API and are accessed via reflection, each with a safe fallback:
 | Raising `FileSaving`/`FileSaved` for other plugins | other plugins are not notified of the quiet save |
 | Looking up the trigger event IDs | triggers are not raised for the quiet save |
 
+## Translations
+
+English and German are written directly in the code. All other languages are JSON files in
+[`src/KeeLiveSync/Languages`](src/KeeLiveSync/Languages) that map the English text to the translation
+and are embedded in the DLL. French, Spanish, Italian, Dutch and Polish are machine translations by the
+authors – **corrections are very welcome** as a pull request that changes only the JSON file.
+
+- New language: create `<ISO 639-1 code>.json` (e.g. `pt.json`) with `{"_language": "Português"}` and run
+  `python tools/i18n.py update` to add all texts; then translate.
+- `{0}`, `{1}` … are placeholders and must stay in the translation.
+- Plural forms: Polish uses an extra key `"<English plural>#few"` for 2–4, 22–24 …
+- `python tools/i18n.py check` reports missing texts and wrong placeholders; the release build runs it too.
+
 ## Building
 
 ```
@@ -182,6 +196,9 @@ in einer App wie KeePassium. Genau hier gehen im Alltag Einträge verloren:
 - **Alles im Blick.** Unten in der Statusleiste steht „Live · synchron“; der Tooltip zeigt den letzten
   Abgleich, wer zuletzt geändert hat und ob die Live-Verbindung steht. Läuft die Microsoft-Anmeldung ab,
   erscheint ein Hinweis mit „Jetzt anmelden“ – bis dahin arbeitest du mit der lokalen Kopie weiter.
+- **Sieben Sprachen.** Deutsch, Englisch, Französisch, Spanisch, Italienisch, Niederländisch und Polnisch –
+  KeeLiveSync folgt automatisch der Sprache von KeePass. Verbesserungen an den Übersetzungen sind
+  willkommen (siehe „Translations“ oben).
 
 ### So funktioniert es technisch
 

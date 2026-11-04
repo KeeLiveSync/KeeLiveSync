@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] – 2026-11-04
+
+### Added
+- User interface in French, Spanish, Italian, Dutch and Polish (machine translation by the authors –
+  corrections welcome). The language follows KeePass; missing texts fall back to English.
+- Language files are embedded in the DLL (`src/KeeLiveSync/Languages/*.json`); `tools/i18n.py` adds new
+  texts and checks every language file (missing texts, placeholders) – also in the release build.
+
+### Changed
+- Dates and times follow the display language.
+- Buttons in the options dialog grow with longer translations.
+
 ## [0.1.2] – 2026-11-04
 
 ### Changed
@@ -50,7 +62,8 @@ First public version.
 - Update check through KeePass (`keepass.version`).
 - German and English UI.
 
-[Unreleased]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/KeeLiveSync/KeeLiveSync/releases/tag/v0.1.0

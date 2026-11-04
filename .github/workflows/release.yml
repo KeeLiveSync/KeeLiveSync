@@ -37,6 +37,12 @@ jobs:
           if (-not (Select-String src/KeeLiveSync/ReleaseKey.cs -Pattern "<Modulus>" -Quiet)) { throw "ReleaseKey.cs enthält keinen Schlüssel" }
           "VERSION=$csproj" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      - name: Übersetzungen prüfen
+        shell: pwsh
+        run: |
+          python tools/i18n.py check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
       - name: KeePass als Build-Referenz laden
         shell: pwsh
         run: |

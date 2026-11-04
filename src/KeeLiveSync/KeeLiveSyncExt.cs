@@ -102,8 +102,8 @@ namespace KeeLiveSync
             var acc = Accounts.Find(accountId);
             string who = acc != null ? acc.Email : Text.T("deinem Microsoft-Konto", "your Microsoft account");
             var t = Toast.Show(_host.MainWindow, Text.T("Anmeldung abgelaufen", "Sign-in expired"),
-                Text.T("Bitte bei " + who + " neu anmelden. Bis dahin arbeitest du mit der lokalen Kopie.",
-                    "Please sign in to " + who + " again. Until then you work with the local copy."),
+                Text.T("Bitte bei {0} neu anmelden. Bis dahin arbeitest du mit der lokalen Kopie.",
+                    "Please sign in to {0} again. Until then you work with the local copy.", who),
                 Text.T("Jetzt anmelden", "Sign in now"), Theme.Warn);
             if (t != null) t.ActionClicked += () => ReSignIn(accountId);
         }
@@ -124,10 +124,9 @@ namespace KeeLiveSync
                     {
                         Log.Warn("Erneute Anmeldung mit anderem Konto: " + acc.Email);
                         MessageBox.Show(_host.MainWindow,
-                            Text.T("Du hast dich mit „" + acc.Email + "“ angemeldet. Für diese Datenbank wird aber „" +
-                                   (expected != null ? expected.Email : "?") + "“ gebraucht.",
-                                "You signed in as \"" + acc.Email + "\", but this database needs \"" +
-                                (expected != null ? expected.Email : "?") + "\"."),
+                            Text.T("Du hast dich mit „{0}“ angemeldet. Für diese Datenbank wird aber „{1}“ gebraucht.",
+                                "You signed in as \"{0}\", but this database needs \"{1}\".",
+                                acc.Email, expected != null ? expected.Email : "?"),
                             "KeeLiveSync", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }

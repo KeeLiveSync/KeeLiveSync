@@ -177,7 +177,7 @@ namespace KeeLiveSync
                 KeepAnswering(listener);
 
                 if (query["error"] != null)
-                    throw new InvalidOperationException(Text.T("Anmeldung abgelehnt: ", "Sign-in declined: ") + query["error_description"]);
+                    throw new InvalidOperationException(Text.T("Anmeldung abgelehnt: {0}", "Sign-in declined: {0}", query["error_description"]));
                 if (query["state"] != state) throw new InvalidOperationException("state mismatch");
 
                 var tokens = await TokenRequest(new Dictionary<string, string>

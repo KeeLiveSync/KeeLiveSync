@@ -76,9 +76,9 @@ namespace KeeLiveSync.UI
             if (old != null) old.Dispose();
             _label.Text = text;
             _label.ToolTipText = "KeeLiveSync – " + s.Link.Name + "\n" +
-                                 Text.T("Zuletzt abgeglichen: ", "Last synced: ") + Text.Ago(s.Link.LastSync) +
-                                 (string.IsNullOrEmpty(s.Link.LastRemoteBy) ? "" : "\n" + Text.T("Zuletzt geändert von: ", "Last changed by: ") + s.Link.LastRemoteBy) +
-                                 (string.IsNullOrEmpty(s.Link.OwnerName) ? "" : "\n" + Text.T("Freigegeben von: ", "Shared by: ") + s.Link.OwnerName) +
+                                 Text.T("Zuletzt abgeglichen: {0}", "Last synced: {0}", Text.Ago(s.Link.LastSync)) +
+                                 (string.IsNullOrEmpty(s.Link.LastRemoteBy) ? "" : "\n" + Text.T("Zuletzt geändert von: {0}", "Last changed by: {0}", s.Link.LastRemoteBy)) +
+                                 (string.IsNullOrEmpty(s.Link.OwnerName) ? "" : "\n" + Text.T("Freigegeben von: {0}", "Shared by: {0}", s.Link.OwnerName)) +
                                  "\n" + (push ? Text.T("Live-Verbindung aktiv", "Live connection active") : Text.T("Keine Live-Verbindung", "No live connection"));
             _label.Visible = true;
         }

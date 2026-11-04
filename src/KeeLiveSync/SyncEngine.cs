@@ -177,7 +177,7 @@ namespace KeeLiveSync
             bool haveCache = File.Exists(link.CachePath);
             if (!haveCache || (!link.LocalDirty && link.CacheCTag != item.CTag))
             {
-                progress(Text.T("Lade „" + item.Name + "“ herunter …", "Downloading \"" + item.Name + "\" …"));
+                progress(Text.T("Lade „{0}“ herunter …", "Downloading \"{0}\" …", item.Name));
                 byte[] data = await Graph.Download(account.Id, item.DriveId, item.Id);
                 string tmp = link.CachePath + ".download";
                 File.WriteAllBytes(tmp, data);
@@ -494,8 +494,8 @@ namespace KeeLiveSync
                 bool ahead = after.Any(kv => !latest.ContainsKey(kv.Key) || kv.Value > latest[kv.Key]);
                 if (restored > 0)
                 {
-                    string r = restored + Text.T(restored == 1 ? " überschriebener Eintrag wiederhergestellt" : " überschriebene Einträge wiederhergestellt",
-                        restored == 1 ? " overwritten entry restored" : " overwritten entries restored");
+                    string r = Text.Plural(restored, "{0} überschriebener Eintrag wiederhergestellt", "{0} überschriebene Einträge wiederhergestellt",
+                        "{0} overwritten entry restored", "{0} overwritten entries restored");
                     summary = summary.Length == 0 ? r : summary + ", " + r;
                 }
                 if (ahead && !s.Link.LocalDirty)
@@ -563,9 +563,9 @@ namespace KeeLiveSync
             int removed = before.Keys.Count(k => !after.ContainsKey(k));
             int changed = after.Count(kv => before.ContainsKey(kv.Key) && before[kv.Key] != kv.Value);
             var parts = new List<string>();
-            if (added > 0) parts.Add(added + Text.T(added == 1 ? " neuer Eintrag" : " neue Einträge", added == 1 ? " new entry" : " new entries"));
-            if (changed > 0) parts.Add(changed + Text.T(changed == 1 ? " geändert" : " geändert", " changed"));
-            if (removed > 0) parts.Add(removed + Text.T(removed == 1 ? " gelöscht" : " gelöscht", " deleted"));
+            if (added > 0) parts.Add(Text.Plural(added, "{0} neuer Eintrag", "{0} neue Einträge", "{0} new entry", "{0} new entries"));
+            if (changed > 0) parts.Add(Text.Plural(changed, "{0} geändert", "{0} geändert", "{0} changed", "{0} changed"));
+            if (removed > 0) parts.Add(Text.Plural(removed, "{0} gelöscht", "{0} gelöscht", "{0} deleted", "{0} deleted"));
             return string.Join(", ", parts);
         }
 

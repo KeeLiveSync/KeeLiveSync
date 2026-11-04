@@ -77,6 +77,13 @@ namespace KeeLiveSync.UI
             _signOut = new Button { Location = new Point(494, 150), Size = new Size(104, 32), Text = Text_("Abmelden", "Sign out"), Enabled = false };
             Theme.Secondary(_signOut);
             _signOut.Click += (s, e) => SignOut();
+            // Knopfbreite nach dem längsten Text (Übersetzungen sind oft länger), Liste rückt entsprechend
+            int buttonWidth = Math.Max(104, Math.Max(TextRenderer.MeasureText(addAccount.Text, addAccount.Font).Width,
+                TextRenderer.MeasureText(_signOut.Text, _signOut.Font).Width) + 32);
+            addAccount.Width = _signOut.Width = buttonWidth;
+            addAccount.Left = _signOut.Left = 598 - buttonWidth;
+            _accounts.Width = addAccount.Left - 12 - 22;
+            _accounts.Columns[0].Width = _accounts.Width - 20;
 
             var hLinks = Section(Text_("Verknüpfte Datenbanken", "Linked databases"), 222);
             _links = NewList(new Point(22, 250), new Size(576, 130));
@@ -141,8 +148,9 @@ namespace KeeLiveSync.UI
             UpdateDebugInfo();
         }
 
-        private static string Text_(string de, string en)
+        private static string Text_(string de, string en, params object[] args)
         {
+            if (args.Length > 0) return KeeLiveSync.Text.T(de, en, args);
             return KeeLiveSync.Text.T(de, en);
         }
 
@@ -163,7 +171,7 @@ namespace KeeLiveSync.UI
         private void UpdateDebugInfo()
         {
             _debugInfo.Text = Log.DebugEnabled
-                ? Text_("aktiv bis ", "active until ") + Settings.DebugUntil.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                ? Text_("aktiv bis {0}", "active until {0}", KeeLiveSync.Text.DateAndTime(Settings.DebugUntil.ToLocalTime()))
                 : Text_("Fehler und wichtige Ereignisse werden immer protokolliert.", "Errors and important events are always logged.");
         }
 
@@ -195,8 +203,8 @@ namespace KeeLiveSync.UI
         {
             var a = _accounts.SelectedItems.Count == 1 ? _accounts.SelectedItems[0].Tag as Account : null;
             if (a == null) return;
-            if (MessageBox.Show(this, Text_("„" + a.Email + "“ abmelden? Verknüpfte Datenbanken dieses Kontos werden erst wieder abgeglichen, wenn du dich erneut anmeldest.",
-                        "Sign out \"" + a.Email + "\"? Linked databases of this account will sync again after you sign in again."),
+            if (MessageBox.Show(this, Text_("„{0}“ abmelden? Verknüpfte Datenbanken dieses Kontos werden erst wieder abgeglichen, wenn du dich erneut anmeldest.",
+                        "Sign out \"{0}\"? Linked databases of this account will sync again after you sign in again.", a.Email),
                     "KeeLiveSync", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
             Accounts.Remove(a.Id);
             Fill();
@@ -216,8 +224,8 @@ namespace KeeLiveSync.UI
                 ? Text_("\n\nAchtung: Die lokale Kopie enthält Änderungen, die noch nicht hochgeladen sind. Sie bleibt als Datei erhalten.",
                     "\n\nNote: the local copy contains changes that have not been uploaded yet. It is kept as a file.")
                 : "";
-            if (MessageBox.Show(this, Text_("Verknüpfung zu „" + l.Name + "“ lösen? Die Datei in OneDrive bleibt unverändert.",
-                        "Unlink \"" + l.Name + "\"? The file in OneDrive stays unchanged.") + warn,
+            if (MessageBox.Show(this, Text_("Verknüpfung zu „{0}“ lösen? Die Datei in OneDrive bleibt unverändert.",
+                        "Unlink \"{0}\"? The file in OneDrive stays unchanged.", l.Name) + warn,
                     "KeeLiveSync", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
             Links.Remove(l);
             if (!l.LocalDirty)
