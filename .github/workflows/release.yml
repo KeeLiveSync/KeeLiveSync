@@ -89,7 +89,7 @@ jobs:
           $end = ($rest | Select-String -Pattern "^## |^\[").LineNumber | Select-Object -First 1
           $notes = if ($end) { $rest[0..($end - 2)] } else { $rest }
           $notes += ""
-          $notes += "Prüfsummen: SHA256SUMS.txt, signiert mit dem Release-Schlüssel (SHA256SUMS.txt.sig, RSA/SHA-256)."
+          $notes += "Checksums: SHA256SUMS.txt, signed with the KeeLiveSync release key (SHA256SUMS.txt.sig, RSA/SHA-256, key fingerprint 6A35F060C245973F)."
           $notes | Out-File release/NOTES.md -Encoding utf8
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
