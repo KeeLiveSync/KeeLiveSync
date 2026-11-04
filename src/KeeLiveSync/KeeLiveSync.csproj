@@ -13,7 +13,7 @@
     <Description>Live synchronization of KeePass databases, works with Microsoft OneDrive</Description>
     <Company>Michael Kaufmann</Company>
     <Copyright>Copyright © 2026 Michael Kaufmann</Copyright>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <RepositoryUrl>https://github.com/blacksun80/KeeLiveSync</RepositoryUrl>
     <!-- Ordner mit KeePass.exe; Standard: Test-KeePass, sonst per -p:KeePassDir=... angeben -->
     <KeePassDir Condition="'$(KeePassDir)' == ''">$(USERPROFILE)\KeeLiveSyncDEV</KeePassDir>

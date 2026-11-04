@@ -1,0 +1,114 @@
+# Baut das Plugin und legt ein GitHub-Release als Entwurf an.
+# Auslöser: Tag "v1.2.3" (muss zur Version im csproj und in keepass.version passen) oder manuell (nur Build, kein Release).
+# Veröffentlicht wird erst nach der Offline-Signatur mit signing/sign-release.ps1.
+# Fremde Actions sind auf Commit-SHAs festgelegt (Kommentar = Tag zum Zeitpunkt des Festlegens).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  KEEPASS_VERSION: "2.61.1"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Version bestimmen und prüfen
+        shell: pwsh
+        run: |
+          $csproj = ([xml](Get-Content src/KeeLiveSync/KeeLiveSync.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          "csproj=$csproj"
+          # Update-Prüfung von KeePass liest keepass.version aus main; die Datei muss signiert sein
+          $lines = Get-Content keepass.version
+          if (-not ($lines -contains "KeeLiveSync:$csproj")) { throw "keepass.version nennt nicht $csproj" }
+          if ($lines[0].Length -lt 100) { throw "keepass.version ist nicht signiert (signing/sign-version.ps1)" }
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $tag = "${{ github.ref_name }}".TrimStart("v")
+            if ($tag -ne $csproj) { throw "Tag v$tag passt nicht zur Version $csproj" }
+          }
+          if (-not (Select-String src/KeeLiveSync/ReleaseKey.cs -Pattern "<Modulus>" -Quiet)) { throw "ReleaseKey.cs enthält keinen Schlüssel" }
+          "VERSION=$csproj" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: KeePass als Build-Referenz laden
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:USERPROFILE "KeePassBuild"
+          $url = "https://downloads.sourceforge.net/project/keepass/KeePass%202.x/$env:KEEPASS_VERSION/KeePass-$env:KEEPASS_VERSION.zip"
+          curl.exe -L --fail --retry 3 -A "Wget/1.21" -o keepass.zip $url
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Expand-Archive keepass.zip -DestinationPath $dir -Force
+          if (-not (Test-Path (Join-Path $dir "KeePass.exe"))) { throw "KeePass.exe fehlt" }
+          "KEEPASS_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Plugin bauen
+        shell: pwsh
+        run: |
+          dotnet build src/KeeLiveSync -c Release -nologo "-p:KeePassDir=$env:KEEPASS_DIR"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $dll = "src/KeeLiveSync/bin/Release/net48/KeeLiveSync.dll"
+          $fv = [Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $dll)).FileVersion
+          if ($fv -ne "$env:VERSION.0") { throw "DLL-Version $fv passt nicht zu $env:VERSION" }
+
+      - name: Pakete schnüren
+        shell: pwsh
+        run: |
+          $out = "release"
+          $pkg = "$out/KeeLiveSync"
+          New-Item -ItemType Directory -Force $pkg | Out-Null
+          Copy-Item src/KeeLiveSync/bin/Release/net48/KeeLiveSync.dll $pkg
+          Copy-Item LICENSE "$pkg/LICENSE.txt"
+          Copy-Item README.md, CHANGELOG.md $pkg
+          Compress-Archive -Path $pkg -DestinationPath "$out/KeeLiveSync-$env:VERSION.zip"
+          # Einzelne DLL für die direkte Installation in den Plugins-Ordner
+          Copy-Item "$pkg/KeeLiveSync.dll" "$out/KeeLiveSync.dll"
+
+      - name: Prüfsummen
+        shell: pwsh
+        run: |
+          $out = "release"
+          Get-ChildItem $out -File | Where-Object { $_.Extension -in ".zip", ".dll" } | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          } | Out-File "$out/SHA256SUMS.txt" -Encoding ascii
+          Get-Content "$out/SHA256SUMS.txt"
+
+      - name: Versionshinweise aus CHANGELOG.md
+        shell: pwsh
+        run: |
+          $lines = Get-Content CHANGELOG.md
+          $start = ($lines | Select-String -Pattern "^## \[$([regex]::Escape($env:VERSION))\]").LineNumber | Select-Object -First 1
+          if (-not $start) { throw "Kein Abschnitt '## [$env:VERSION]' in CHANGELOG.md" }
+          $rest = $lines[$start..($lines.Count - 1)]
+          $end = ($rest | Select-String -Pattern "^## |^\[").LineNumber | Select-Object -First 1
+          $notes = if ($end) { $rest[0..($end - 2)] } else { $rest }
+          $notes += ""
+          $notes += "Prüfsummen: SHA256SUMS.txt, signiert mit dem Release-Schlüssel (SHA256SUMS.txt.sig, RSA/SHA-256)."
+          $notes | Out-File release/NOTES.md -Encoding utf8
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: KeeLiveSync-${{ env.VERSION }}
+          path: |
+            release/*.zip
+            release/*.dll
+            release/SHA256SUMS.txt
+
+      # Nur als Entwurf: veröffentlicht wird nach der Signatur mit signing/sign-release.ps1 (Schlüssel nur offline)
+      - name: GitHub-Release als Entwurf anlegen
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          draft: true
+          name: KeeLiveSync ${{ env.VERSION }}
+          body_path: release/NOTES.md
+          files: |
+            release/KeeLiveSync.dll
+            release/KeeLiveSync-${{ env.VERSION }}.zip
+            release/SHA256SUMS.txt

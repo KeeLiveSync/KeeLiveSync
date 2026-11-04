@@ -34,6 +34,9 @@ namespace KeeLiveSync
         {
             if (host == null) return false;
             _host = host;
+            // KeePass-Update-Prüfung: keepass.version ist mit dem Release-Schlüssel signiert (signing/sign-version.ps1);
+            // unsignierte oder veränderte Dateien zeigt KeePass als Fehler statt einer falschen Version
+            KeePass.Util.UpdateCheckEx.SetFileSigKey(UpdateUrl, ReleaseKey.PublicKeyXml);
             Log.Info("KeeLiveSync " + typeof(KeeLiveSyncExt).Assembly.GetName().Version.ToString(3) + " gestartet (KeePass " +
                      KeePassLib.PwDefs.VersionString + ", Debug " + (Log.DebugEnabled ? "an" : "aus") + ")");
             CleanTemp();

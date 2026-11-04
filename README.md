@@ -62,6 +62,14 @@ PC and a phone app such as KeePassium.
 
 KeePass checks for new versions of KeeLiveSync together with its own update check.
 
+### Verifying a download
+
+Releases are built by GitHub Actions and published only after `SHA256SUMS.txt` has been signed offline
+with the KeeLiveSync release key (`SHA256SUMS.txt.sig`, RSA/SHA-256). The public key is in
+[`src/KeeLiveSync/ReleaseKey.cs`](src/KeeLiveSync/ReleaseKey.cs) (fingerprint `6A35F060C245973F`).
+The update information `keepass.version` is signed with the same key, and KeeLiveSync tells KeePass to
+reject it if the signature does not match.
+
 ## Usage
 
 1. **File → Open → Open from the cloud (KeeLiveSync) …**

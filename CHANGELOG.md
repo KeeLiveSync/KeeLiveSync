@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] – 2026-11-04
+
+### Security
+- The update information (`keepass.version`) is now signed with the KeeLiveSync release key; KeePass
+  rejects unsigned or modified files instead of announcing a wrong version.
+- Releases are built by GitHub Actions and published only after an offline signature of
+  `SHA256SUMS.txt` (`SHA256SUMS.txt.sig`, RSA/SHA-256).
+
+### Added
+- Release package `KeeLiveSync-<version>.zip` with license, readme and changelog.
+
 ## [0.1.0] – 2026-11-04
 
 First public version.
@@ -33,5 +44,6 @@ First public version.
 - Update check through KeePass (`keepass.version`).
 - German and English UI.
 
-[Unreleased]: https://github.com/blacksun80/KeeLiveSync/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/blacksun80/KeeLiveSync/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/blacksun80/KeeLiveSync/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/blacksun80/KeeLiveSync/releases/tag/v0.1.0
