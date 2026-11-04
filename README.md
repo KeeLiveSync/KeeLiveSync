@@ -12,6 +12,18 @@ PC and a phone app such as KeePassium.
 
 > 🇩🇪 Eine deutsche Kurzbeschreibung steht [weiter unten](#deutsch).
 
+## Screenshots
+
+| Open from OneDrive | Open a shared database |
+| --- | --- |
+| ![Open from OneDrive](docs/screenshots/open-onedrive.png) | ![Open a shared database](docs/screenshots/open-shared-link.png) |
+
+| Changes from others | Status bar | Options |
+| --- | --- | --- |
+| ![Notice](docs/screenshots/notification.png) | ![Status bar](docs/screenshots/status-bar.png) | ![Options](docs/screenshots/options.png) |
+
+<sub>Example data. Screenshots are generated with `tools/screenshots.ps1`.</sub>
+
 ## Features
 
 - **Opens instantly.** The database is opened from a local cache; the cloud is checked afterwards.
