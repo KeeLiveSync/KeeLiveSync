@@ -22,7 +22,7 @@ namespace KeeLiveSync
         /// <summary>Versionsdatei für die Update-Prüfung von KeePass (Format: keepass.info/help/v2_dev/plg_index.html#upd)</summary>
         public override string UpdateUrl
         {
-            get { return "https://raw.githubusercontent.com/blacksun80/KeeLiveSync/main/keepass.version"; }
+            get { return "https://raw.githubusercontent.com/KeeLiveSync/KeeLiveSync/main/version.txt"; }
         }
 
         public override Image SmallIcon
@@ -34,7 +34,7 @@ namespace KeeLiveSync
         {
             if (host == null) return false;
             _host = host;
-            // KeePass-Update-Prüfung: keepass.version ist mit dem Release-Schlüssel signiert (signing/sign-version.ps1);
+            // KeePass-Update-Prüfung: version.txt ist mit dem Release-Schlüssel signiert (signing/sign-version.ps1);
             // unsignierte oder veränderte Dateien zeigt KeePass als Fehler statt einer falschen Version
             KeePass.Util.UpdateCheckEx.SetFileSigKey(UpdateUrl, ReleaseKey.PublicKeyXml);
             Log.Info("KeeLiveSync " + typeof(KeeLiveSyncExt).Assembly.GetName().Version.ToString(3) + " gestartet (KeePass " +

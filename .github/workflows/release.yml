@@ -1,5 +1,5 @@
 # Baut das Plugin und legt ein GitHub-Release als Entwurf an.
-# Auslöser: Tag "v1.2.3" (muss zur Version im csproj und in keepass.version passen) oder manuell (nur Build, kein Release).
+# Auslöser: Tag "v1.2.3" (muss zur Version im csproj und in version.txt passen) oder manuell (nur Build, kein Release).
 # Veröffentlicht wird erst nach der Offline-Signatur mit signing/sign-release.ps1.
 # Fremde Actions sind auf Commit-SHAs festgelegt (Kommentar = Tag zum Zeitpunkt des Festlegens).
 name: Release
@@ -26,10 +26,10 @@ jobs:
         run: |
           $csproj = ([xml](Get-Content src/KeeLiveSync/KeeLiveSync.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
           "csproj=$csproj"
-          # Update-Prüfung von KeePass liest keepass.version aus main; die Datei muss signiert sein
-          $lines = Get-Content keepass.version
-          if (-not ($lines -contains "KeeLiveSync:$csproj")) { throw "keepass.version nennt nicht $csproj" }
-          if ($lines[0].Length -lt 100) { throw "keepass.version ist nicht signiert (signing/sign-version.ps1)" }
+          # Update-Prüfung von KeePass liest version.txt aus main; die Datei muss signiert sein
+          $lines = Get-Content version.txt
+          if (-not ($lines -contains "KeeLiveSync:$csproj")) { throw "version.txt nennt nicht $csproj" }
+          if ($lines[0].Length -lt 100) { throw "version.txt ist nicht signiert (signing/sign-version.ps1)" }
           if ("${{ github.ref_type }}" -eq "tag") {
             $tag = "${{ github.ref_name }}".TrimStart("v")
             if ($tag -ne $csproj) { throw "Tag v$tag passt nicht zur Version $csproj" }

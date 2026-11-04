@@ -10,7 +10,7 @@ Aufruf: .\signing\sign-release.ps1 v0.1.1
 param(
     [Parameter(Mandatory = $true)][string]$Tag,
     [string]$KeyPath = (Join-Path $env:USERPROFILE ".keelivesync\release-signing-key.xml"),
-    [string]$Repo = "blacksun80/KeeLiveSync",
+    [string]$Repo = "KeeLiveSync/KeeLiveSync",
     # Nur prüfen und signieren, nichts hochladen oder veröffentlichen
     [switch]$DryRun
 )

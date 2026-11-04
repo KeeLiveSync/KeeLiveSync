@@ -55,7 +55,7 @@ PC and a phone app such as KeePassium.
 
 ## Installation
 
-1. Download `KeeLiveSync.dll` from the [latest release](https://github.com/blacksun80/KeeLiveSync/releases/latest).
+1. Download `KeeLiveSync.dll` from the [latest release](https://github.com/KeeLiveSync/KeeLiveSync/releases/latest).
 2. Copy it into the `Plugins` folder of your KeePass installation
    (e.g. `C:\Program Files\KeePass Password Safe 2\Plugins`).
 3. Restart KeePass.
@@ -67,7 +67,7 @@ KeePass checks for new versions of KeeLiveSync together with its own update chec
 Releases are built by GitHub Actions and published only after `SHA256SUMS.txt` has been signed offline
 with the KeeLiveSync release key (`SHA256SUMS.txt.sig`, RSA/SHA-256). The public key is in
 [`src/KeeLiveSync/ReleaseKey.cs`](src/KeeLiveSync/ReleaseKey.cs) (fingerprint `6A35F060C245973F`).
-The update information `keepass.version` is signed with the same key, and KeeLiveSync tells KeePass to
+The update information `version.txt` is signed with the same key, and KeeLiveSync tells KeePass to
 reject it if the signature does not match.
 
 ## Usage
