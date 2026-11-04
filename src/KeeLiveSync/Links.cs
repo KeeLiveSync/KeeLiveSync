@@ -15,6 +15,8 @@ namespace KeeLiveSync
         public string OwnerName { get; set; }
         /// <summary>cTag der Cloud-Fassung, die in der Cache-Datei steckt</summary>
         public string CacheCTag { get; set; }
+        /// <summary>Änderungszeit (UTC) der Cloud-Fassung, die CacheCTag beschreibt; Grundlage für übersprungene Versionen</summary>
+        public DateTime CacheModified { get; set; }
         /// <summary>Cache enthält eigene Änderungen, die noch nicht hochgeladen sind</summary>
         public bool LocalDirty { get; set; }
         public DateTime LastSync { get; set; }

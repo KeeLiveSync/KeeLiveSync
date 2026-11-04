@@ -211,6 +211,18 @@ namespace KeeLiveSync
             return r.Bytes;
         }
 
+        /// <summary>Versionsverlauf einer Datei: Versions-ID und Änderungszeit (UTC), neueste zuerst; die erste ist die aktuelle Fassung</summary>
+        internal static async Task<List<KeyValuePair<string, DateTime>>> Versions(string accountId, string driveId, string itemId)
+        {
+            var r = await Send(accountId, HttpMethod.Get, "/drives/" + driveId + "/items/" + itemId + "/versions?$select=id,lastModifiedDateTime").ConfigureAwait(false);
+            if (!r.Ok) throw Fail(r, "Versionsverlauf lesen");
+            var list = new List<KeyValuePair<string, DateTime>>();
+            foreach (var v in r.Data.Arr("value"))
+                list.Add(new KeyValuePair<string, DateTime>(v.Str("id"), v.Date("lastModifiedDateTime")));
+            list.Sort((a, b) => b.Value.CompareTo(a.Value));
+            return list;
+        }
+
         /// <summary>Ältere Fassung aus dem OneDrive-Versionsverlauf; null, wenn es sie nicht (mehr) gibt</summary>
         internal static async Task<byte[]> DownloadVersion(string accountId, string driveId, string itemId, string versionId)
         {

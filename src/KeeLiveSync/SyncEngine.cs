@@ -30,6 +30,8 @@ namespace KeeLiveSync
         public PwDatabase Db;
         /// <summary>cTag der Cloud-Fassung, die zuletzt in die offene Datenbank eingeflossen ist</summary>
         public string MergedCTag;
+        /// <summary>Änderungszeit (UTC) der Cloud-Fassung zu MergedCTag</summary>
+        public DateTime MergedModified;
         public bool Busy;
         public bool CheckPending;
         public bool SuppressUpload;
@@ -184,6 +186,7 @@ namespace KeeLiveSync
                 if (haveCache) File.Replace(tmp, link.CachePath, null);
                 else File.Move(tmp, link.CachePath);
                 link.CacheCTag = item.CTag;
+                link.CacheModified = item.Modified;
                 link.LastSync = DateTime.Now;
                 link.LastRemoteBy = item.ModifiedBy;
                 Log.Info("Cache aktualisiert: " + item.Name + " (" + Text.Size(data.Length) + ")");
@@ -200,7 +203,7 @@ namespace KeeLiveSync
             Session s;
             if (!_sessions.TryGetValue(db, out s))
             {
-                s = new Session { Link = link, Db = db, MergedCTag = link.CacheCTag };
+                s = new Session { Link = link, Db = db, MergedCTag = link.CacheCTag, MergedModified = link.CacheModified };
                 _sessions[db] = s;
                 Log.Info("Geöffnet: " + link.Name + " (Cloud-Datei " + Log.Short(link.ItemId) + ")");
             }
@@ -398,18 +401,44 @@ namespace KeeLiveSync
         private async Task<List<byte[]>> DownloadWithSkipped(Session s, DriveItem item)
         {
             var result = new List<byte[]>();
+            // Zwischenversionen nur, wenn der bekannte Stand nicht direkt der Vorgänger ist (cTag-Zähler springt um mehr als 1)
             int seen = CTagVersion(s.MergedCTag), latest = CTagVersion(item.CTag);
-            if (seen > 0 && latest > seen + 1)
+            bool skipped = seen == 0 || latest == 0 || latest > seen + 1;
+            if (skipped && s.MergedModified != DateTime.MinValue)
             {
-                int from = Math.Max(seen + 1, latest - MaxSkippedVersions);
-                if (from > seen + 1) Log.Warn((from - seen - 1) + " ältere Zwischenversionen werden nicht geprüft: " + s.Link.Name);
-                for (int v = from; v < latest; v++)
+                try
                 {
-                    byte[] old = await Graph.DownloadVersion(s.Link.AccountId, s.Link.DriveId, s.Link.ItemId, v + ".0");
-                    if (old != null) result.Add(old);
-                    else Log.Debug("Version " + v + " nicht im Verlauf: " + s.Link.Name);
+                    // Versions-IDs entsprechen nicht immer dem cTag-Zähler → über die Änderungszeit auswählen;
+                    // die aktuelle Fassung (neueste) kommt über den normalen Download
+                    var versions = await Graph.Versions(s.Link.AccountId, s.Link.DriveId, s.Link.ItemId);
+                    var between = versions.Skip(1)
+                        .Where(v => v.Value > s.MergedModified && v.Value < item.Modified)
+                        .ToList();
+                    if (between.Count > MaxSkippedVersions)
+                    {
+                        Log.Warn((between.Count - MaxSkippedVersions) + " ältere Zwischenversionen werden nicht geprüft: " + s.Link.Name);
+                        between = between.Take(MaxSkippedVersions).ToList();
+                    }
+                    between.Reverse();
+                    foreach (var v in between)
+                    {
+                        byte[] old = await Graph.DownloadVersion(s.Link.AccountId, s.Link.DriveId, s.Link.ItemId, v.Key);
+                        if (old != null) result.Add(old);
+                        else Log.Debug("Version " + v.Key + " nicht im Verlauf: " + s.Link.Name);
+                    }
+                    if (between.Count > 0)
+                        Log.Info("Übersprungene Versionen geholt (" + result.Count + " von " + between.Count + "): " + s.Link.Name);
                 }
-                Log.Info("Übersprungene Versionen " + from + "–" + (latest - 1) + " geholt (" + result.Count + "): " + s.Link.Name);
+                catch (SignInRequiredException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // Zwischenversionen sind eine Zusatzsicherung – der normale Abgleich darf daran nicht scheitern
+                    Log.Warn("Zwischenversionen nicht geprüft: " + s.Link.Name + " – " + Log.Describe(ex));
+                    result.Clear();
+                }
             }
             result.Add(await Graph.Download(s.Link.AccountId, s.Link.DriveId, s.Link.ItemId));
             return result;
@@ -504,6 +533,7 @@ namespace KeeLiveSync
                     s.Link.LocalDirty = true;
                 }
                 s.MergedCTag = item.CTag;
+                s.MergedModified = item.Modified;
                 s.Link.LastSync = DateTime.Now;
                 s.Link.LastRemoteBy = item.ModifiedBy;
                 Log.Info("Zusammengeführt: " + s.Link.Name + " – " + (summary.Length == 0 ? "keine sichtbaren Änderungen" : summary));
@@ -909,6 +939,7 @@ namespace KeeLiveSync
             {
                 s.SuppressUpload = false;
                 s.Link.CacheCTag = s.MergedCTag;
+                s.Link.CacheModified = s.MergedModified;
                 Links.Save();
                 Log.Debug("Cache auf Cloud-Stand gebracht, kein Hochladen nötig: " + s.Link.Name);
                 return;
@@ -989,7 +1020,9 @@ namespace KeeLiveSync
             }
             s.ConflictRounds = 0;
             s.MergedCTag = result.Item.CTag;
+            s.MergedModified = result.Item.Modified;
             s.Link.CacheCTag = result.Item.CTag;
+            s.Link.CacheModified = result.Item.Modified;
             s.Link.LocalDirty = false;
             s.Link.LastSync = DateTime.Now;
             Links.Save();
@@ -1035,9 +1068,11 @@ namespace KeeLiveSync
                             if (!earlier.Conflict)
                             {
                                 s.MergedCTag = earlier.Item.CTag;
+                                s.MergedModified = earlier.Item.Modified;
                                 if (Hash(File.ReadAllBytes(s.Link.CachePath)) == inFlight.Item2)
                                 {
                                     s.Link.CacheCTag = earlier.Item.CTag;
+                                    s.Link.CacheModified = earlier.Item.Modified;
                                     s.Link.LocalDirty = false;
                                     s.Link.LastSync = DateTime.Now;
                                     Links.Save();
@@ -1058,7 +1093,9 @@ namespace KeeLiveSync
                         if (!result.Conflict)
                         {
                             s.MergedCTag = result.Item.CTag;
+                            s.MergedModified = result.Item.Modified;
                             s.Link.CacheCTag = result.Item.CTag;
+                            s.Link.CacheModified = result.Item.Modified;
                             s.Link.LocalDirty = false;
                             s.Link.LastSync = DateTime.Now;
                             Links.Save();
@@ -1070,6 +1107,7 @@ namespace KeeLiveSync
                         var versions = await DownloadWithSkipped(s, item).ConfigureAwait(false);
                         MergeIntoCache(s, key, versions);
                         s.MergedCTag = item.CTag;
+                        s.MergedModified = item.Modified;
                     }
                     Log.Warn("Hochladen nach dem Schließen aufgegeben (zu viele gleichzeitige Änderungen): " + s.Link.Name);
                 }

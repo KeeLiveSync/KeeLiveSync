@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] – 2026-11-04
+
+### Fixed
+- Sync failed with "You cannot get the content of the current version" (400) when OneDrive's version IDs
+  did not match the cTag counter. Skipped versions are now selected from the version history by their
+  modification time, and a problem with this extra step no longer stops the normal sync.
+
 ## [0.2.0] – 2026-11-04
 
 ### Added
@@ -62,7 +69,8 @@ First public version.
 - Update check through KeePass (`keepass.version`).
 - German and English UI.
 
-[Unreleased]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.1.0...v0.1.1
