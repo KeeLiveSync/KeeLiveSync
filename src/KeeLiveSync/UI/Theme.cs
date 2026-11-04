@@ -218,6 +218,32 @@ namespace KeeLiveSync.UI
             return bmp;
         }
 
+        /// <summary>Kreispfeil für „Aktualisieren“</summary>
+        internal static Bitmap RefreshIcon(int size)
+        {
+            var bmp = new Bitmap(size, size);
+            using (var g = Prepare(bmp))
+            using (var pen = new Pen(Muted, Math.Max(1.4f, size * 0.09f)) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+            {
+                float s = size, r = s * 0.30f, c = s * 0.5f;
+                const float start = 20f, sweep = 280f;
+                g.DrawArc(pen, c - r, c - r, 2 * r, 2 * r, start, sweep);
+                // gefüllte Pfeilspitze am Bogenende, in Laufrichtung (im Uhrzeigersinn)
+                double a = (start + sweep) * Math.PI / 180;
+                float ex = c + r * (float)Math.Cos(a), ey = c + r * (float)Math.Sin(a);
+                float tx = -(float)Math.Sin(a), ty = (float)Math.Cos(a);
+                float h = s * 0.22f, w = s * 0.16f;
+                using (var brush = new SolidBrush(Muted))
+                    g.FillPolygon(brush, new[]
+                    {
+                        new PointF(ex + tx * h * 0.6f, ey + ty * h * 0.6f),
+                        new PointF(ex - tx * h * 0.4f + ty * w, ey - ty * h * 0.4f - tx * w),
+                        new PointF(ex - tx * h * 0.4f - ty * w, ey - ty * h * 0.4f + tx * w)
+                    });
+            }
+            return bmp;
+        }
+
         /// <summary>Flacher Hauptknopf in Akzentfarbe</summary>
         internal static void Primary(Button b)
         {

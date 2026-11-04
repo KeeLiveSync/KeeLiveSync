@@ -36,6 +36,7 @@ namespace KeeLiveSync.UI
         private readonly Panel _browsePage;
         private readonly Panel _linkPage;
         private readonly Button _up;
+        private readonly Button _refresh;
         private readonly Label _crumb;
         private readonly ListView _list;
         private readonly Label _empty;
@@ -122,7 +123,11 @@ namespace KeeLiveSync.UI
             _up.Click += (s, e) => GoUp();
             var tips = new ToolTip();
             tips.SetToolTip(_up, Text_("Übergeordneter Ordner", "Parent folder"));
-            _crumb = new Label { AutoSize = false, Location = new Point(60, 4), Size = new Size(578, 28), TextAlign = ContentAlignment.MiddleLeft, ForeColor = Theme.Muted, AutoEllipsis = true };
+            _refresh = new Button { Location = new Point(608, 4), Size = new Size(30, 28), Image = Theme.RefreshIcon(Theme.ScaleScreen(18)) };
+            Theme.Secondary(_refresh);
+            _refresh.Click += (s, e) => RefreshFolder();
+            tips.SetToolTip(_refresh, Text_("Aktualisieren (F5)", "Refresh (F5)"));
+            _crumb = new Label { AutoSize = false, Location = new Point(60, 4), Size = new Size(540, 28), TextAlign = ContentAlignment.MiddleLeft, ForeColor = Theme.Muted, AutoEllipsis = true };
             var listFrame = new Panel { Location = new Point(22, 40), Size = new Size(616, 272), BackColor = Theme.Line, Padding = new Padding(1) };
             _list = new ListView
             {
@@ -146,7 +151,7 @@ namespace KeeLiveSync.UI
                 ForeColor = Theme.Muted, BackColor = Color.White, Visible = false,
                 Text = Text_("Keine KeePass-Datenbanken (.kdbx) in diesem Ordner.", "No KeePass databases (.kdbx) in this folder.")
             };
-            _browsePage.Controls.AddRange(new Control[] { _empty, _up, _crumb, listFrame });
+            _browsePage.Controls.AddRange(new Control[] { _empty, _up, _refresh, _crumb, listFrame });
             _empty.BringToFront();
 
             // Seite: Freigabelink
@@ -226,6 +231,7 @@ namespace KeeLiveSync.UI
             {
                 if (e.KeyCode == Keys.Escape) _cancel.PerformClick();
                 if (e.KeyCode == Keys.Back && _browsePage.Visible && !_linkBox.Focused) GoUp();
+                if (e.KeyCode == Keys.F5 && _browsePage.Visible) RefreshFolder();
             };
         }
 
@@ -320,7 +326,8 @@ namespace KeeLiveSync.UI
             {
                 var acc = a;
                 var item = new ToolStripMenuItem(a.Name + "  <" + a.Email + ">", Theme.Avatar(a.Initials, Theme.ScaleScreen(20)));
-                item.Checked = _account != null && a.Id == _account.Id;
+                // aktuelles Konto fett (ein Häkchen wäre neben dem Avatar nicht sichtbar)
+                if (_account != null && a.Id == _account.Id) item.Font = new Font(Font, FontStyle.Bold);
                 item.Click += (s, e) =>
                 {
                     _account = acc;
@@ -330,14 +337,29 @@ namespace KeeLiveSync.UI
             }
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(Text_("Weiteres Konto anmelden …", "Sign in another account …"), null, async (s, e) => await SignIn());
-            if (_account != null)
-                menu.Items.Add(Text_("„{0}“ abmelden", "Sign out \"{0}\"", _account.Email), null, (s, e) =>
-                {
-                    Accounts.Remove(_account.Id);
-                    _account = Accounts.All.FirstOrDefault();
-                    UpdateAccount();
-                });
+            var signOut = new ToolStripMenuItem(Text_("Konto abmelden", "Sign out account")) { Enabled = Accounts.All.Count > 0 };
+            foreach (var a in Accounts.All)
+            {
+                var acc = a;
+                signOut.DropDownItems.Add(a.Email, Theme.Avatar(a.Initials, Theme.ScaleScreen(20)), (s, e) => SignOutAccount(acc));
+            }
+            menu.Items.Add(signOut);
             menu.Show(_switchAccount, new Point(0, _switchAccount.Height));
+        }
+
+        /// <summary>Konto nach Rückfrage abmelden (Anmeldung und Token werden gelöscht; verknüpfte Datenbanken bleiben lokal erhalten)</summary>
+        private void SignOutAccount(Account acc)
+        {
+            if (MessageBox.Show(this, Text_("„{0}“ abmelden? Verknüpfte Datenbanken dieses Kontos werden erst wieder abgeglichen, wenn du dich erneut anmeldest.",
+                        "Sign out \"{0}\"? Linked databases of this account will sync again after you sign in again.", acc.Email),
+                    "KeeLiveSync", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+            Log.Info("Konto abgemeldet: " + acc.Email);
+            Accounts.Remove(acc.Id);
+            if (_account == null || _account.Id == acc.Id)
+            {
+                _account = Accounts.All.FirstOrDefault();
+                UpdateAccount();
+            }
         }
 
         private async Task SignIn()
@@ -414,6 +436,23 @@ namespace KeeLiveSync.UI
                 Log.Error("Ordner laden fehlgeschlagen", ex);
                 ShowError(Text_("Ordner konnte nicht geladen werden: ", "Could not load folder: ") + ex.Message);
             }
+        }
+
+        /// <summary>Aktuellen Ordner neu laden; Scrollposition und Markierung bleiben</summary>
+        private async void RefreshFolder()
+        {
+            if (_account == null) return;
+            RememberScroll();
+            var current = _path.Count > 0 ? _path.Peek() : null;
+            var selected = _list.SelectedItems.Count == 1 ? _list.SelectedItems[0].Tag as DriveItem : null;
+            if (selected != null) _selectAfterLoad = selected.Id;
+            if (current != null && current.DriveId != null && current.DriveId != _account.DriveId)
+            {
+                // freigegebener Ordner auf fremdem Laufwerk
+                _path.Pop();
+                await LoadRemoteFolder(current);
+            }
+            else LoadFolder(current);
         }
 
         private void GoUp()

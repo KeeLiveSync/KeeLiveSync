@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] – 2026-11-04
+
+### Added
+- Open dialog: "Sign out account" lists every signed-in account (with confirmation); the current account
+  is shown in bold.
+- Open dialog: refresh button (and F5) reloads the current folder and keeps scroll position and selection.
+
+### Changed
+- The Microsoft sign-in page now shows the app as "KeeLiveSync" from a verified publisher.
+
 ## [0.4.0] – 2026-11-04
 
 ### Added
@@ -103,7 +113,8 @@ First public version.
 - Update check through KeePass (`keepass.version`).
 - German and English UI.
 
-[Unreleased]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/KeeLiveSync/KeeLiveSync/compare/v0.2.0...v0.2.1
