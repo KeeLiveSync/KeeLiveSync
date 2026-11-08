@@ -6,6 +6,8 @@ Please do not report security problems in public issues.
 
 Use GitHub's private reporting instead: open the [Security tab](https://github.com/KeeLiveSync/KeeLiveSync/security) and choose **Report a vulnerability**. Only you and the maintainers can see the report.
 
+If you have no GitHub account, write to KeeLiveSync@gmail.com. E-mail is not encrypted, so please describe the problem only briefly at first; we will agree on a safe way to share the details.
+
 Helpful details are the affected version, the KeePass version, the steps to reproduce and what an attacker could achieve.
 
 KeeLiveSync is maintained in spare time, so there is no guaranteed response time. We will answer as soon as we can and tell you when a fix is released.
