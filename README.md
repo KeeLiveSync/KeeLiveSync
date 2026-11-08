@@ -1,5 +1,7 @@
 # KeeLiveSync
 
+[![CodeQL](https://github.com/KeeLiveSync/KeeLiveSync/actions/workflows/codeql.yml/badge.svg)](https://github.com/KeeLiveSync/KeeLiveSync/actions/workflows/codeql.yml)
+
 **Live synchronization of KeePass 2 databases in Microsoft OneDrive.**
 
 KeeLiveSync is a plugin for [KeePass Password Safe 2](https://keepass.info)
